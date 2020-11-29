@@ -1,0 +1,50 @@
+{
+	"selection": ["stats","*"],
+	"test_cases": {
+		"basic_search": {
+			"search":"index=\"idx\" sourcetype=logs event_id IN (1,3)",
+			"exp_err":0,
+			"tags":["search"]
+		},
+		"basic_search_2": {
+			"search":"index=idx\" sourcetype=logs event_id IN (1,3)",
+			"exp_err":1,
+			"tags":["search","error"]
+			},
+		"simple_stats": {
+			"search":"index=\"idx\" | stats count by sourcetype",
+			"exp_err":0,
+			"tags":["search","stats"]
+		},
+		"simple_stats_with_renaming": {
+			"search":"index=\"idx\" | stats count values(host) as hosts_list by sourcetype",
+			"exp_err":0,
+			"tags":["search","stats"]
+		},
+		"simple_stats_with_renaming_and_args": {
+			"search":"index=\"idx\" | stats partitions=2 delim=\".\" count values(host) as hosts_list by sourcetype",
+			"exp_err":0,
+			"tags":["search","stats","args"]
+		},
+		"simple_stats_with_wrong_args": {
+			"search":"index=\"idx\" | stats delimiter=2 count values(host) as hosts_list by sourcetype",
+			"exp_err":1,
+			"tags":["search","stats","args","error"]
+		},
+		"simple_stats": {
+			"search":"index=\"idx\" | eval success=if(result=1,true,false)",
+			"exp_err":0,
+			"tags":["search","eval"]
+		},
+		"simple_accum": {
+			"search":"index=\"idx\" | accum score as sum_score",
+			"exp_err":0,
+			"tags":["search","accum"]
+		},
+		"simple_accum_with_error": {
+			"search":"index=\"idx\" | accum score sum_score",
+			"exp_err":1,
+			"tags":["search","accum"]
+		}
+	}
+}
