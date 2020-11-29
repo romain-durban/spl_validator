@@ -11,13 +11,14 @@ if not conf is None:
 	print("[INIT] Tests selected: {}".format(conf["selection"]))
 	for test_id in conf["test_cases"]:
 		test = conf["test_cases"][test_id]
-		selected=False
 		if "*" in conf["selection"]:
 			selected=True
 		else:
-			for t in test["tags"]:
-				if t in conf["selection"]:
-					selected=True
+			for comb in conf["selection"]:
+				selected=True
+				for t in comb:
+					selected = selected and (t in test["tags"])
+				if selected:
 					break
 
 		if selected:

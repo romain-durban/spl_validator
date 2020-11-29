@@ -88,7 +88,9 @@ A small testing module has been written in `test.py` which runs a series of test
   * `search`: Query to test
   * `exp_err`: Expected errors to be found
   * `tags`: List of tags used to select only some of the tests
-* `selection`: List of tags to select tests to run
+* `selection`: List of combinations of tags to select tests to run
+  * Example: `"selection": [["search","error"]]` will select test cases having both tags
+  * Other example: `"selection": [["search"],["error"]]` will select test cases where at least one of the tags matched
   * Use `*` to select them all
 
 ## Debugging
