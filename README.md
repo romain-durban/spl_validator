@@ -77,3 +77,15 @@ A small testing module has been written in `test.py` which runs a series of test
   * `tags`: List of tags used to select only some of the tests
 * `selection`: List of tags to select tests to run
   * Use `*` to select them all
+
+## Debugging
+
+The PLY parser prints debugging information in the file `parser.out`, which contains elements such as the state machine description, helping understand how the parser behaves.
+
+## Author
+
+Romain Durban (romain.durban@gmail.com)
+
+# License
+
+The project is licensed under MIT License
