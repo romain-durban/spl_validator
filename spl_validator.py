@@ -1,11 +1,29 @@
 
-import sys, os, re, json
+import sys, os, re, json, logging
 from lib.ply import lex
 from lib.ply import yacc
 
+# LOGGING
+logger = logging.getLogger('spl_validator')
+logger.setLevel(logging.CRITICAL)
+ch = logging.StreamHandler()
+ch.setLevel(logging.CRITICAL)
+formatter = logging.Formatter('[%(levelname)s] %(message)s')
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
+# CONF
 cmd_conf=None
-with open('spl_commands.json') as f:
-    cmd_conf = json.load(f)
+try:
+    with open('spl_commands.json') as f:
+        cmd_conf = json.load(f)
+except FileNotFoundError:
+    logger.critical("spl_commands.json not found")
+    exit()
+
+if cmd_conf is None:
+    logger.critical("spl_commands.json could not be loaded")
+    exit()
 
 #---------------------------
 #       LEX
@@ -89,11 +107,10 @@ def t_NAME(t):
     return t
 
 def t_error(t):
-    print("Illegal character '%s'" % t.value[0])
+    report_error(t.lexpos,t.lexpos+len(t.value[0]),"Illegal character {}".format(t.value[0]),None,value=t.value[0])
     t.lexer.skip(1)
 
-# Build the lexer
-lexer = lex.lex()
+lexer = None
 
 #---------------------------
 #       YACC
@@ -142,8 +159,7 @@ def p_search_exp(p):
             if not f in fields["output"] and f is not None:
                 fields["output"].append(f)
     p[0] = fields
-    if params["verbose"]:
-        print("SEARCH [{}]: {}".format(scope_level,fields))
+    logger.info("SEARCH [{}]: {}".format(scope_level,fields))
     if scope_level > 0:
         data["subsearches"].append({"level":scope_level,"data":fields})
 
@@ -408,8 +424,7 @@ def p_command_stats(p):
         for arg in p[2]:
             if not arg in cmd_conf[p[1]]["args"]:
                 report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(p[2],p[1],str(cmd_conf[p[1]]["args"])),None,value=p[2])
-    if params["verbose"]:
-        print("Parsed a STATS", fields)
+    logger.info("Parsed a STATS: {}".format(fields))
 
 # TABLE
 def p_command_table(p):
@@ -421,8 +436,7 @@ def p_command_eval(p):
     'command : CMD_EVAL eval_exprs'
     global params
     p[0] = {"input":[],"output":p[2],"fields-effect":"extend"}
-    if params["verbose"]:
-        print("Parsed a EVAL", p[0])
+    logger.info("Parsed a EVAL: {}".format(p[0]))
 
 def p_command_eval_exprs(p):
     '''eval_exprs : eval_expr_assign COMMA eval_exprs
@@ -830,9 +844,8 @@ def p_error(p):
         report_error(max(0,p.lexpos-10),p.lexpos+len(str(p.value)),"Unexpected symbol",p)
     else:
         report_error(-10,-1,"Syntax error in at AOF",None)
-    #raise SyntaxError
-#errorlog=yacc.NullLogger()
-parser = yacc.yacc(debug=True)
+
+parser = None
 
 #---------------------------
 #       CUSTOM FUNCTIONS
@@ -840,14 +853,31 @@ parser = yacc.yacc(debug=True)
 #Custom global vars
 scope_level=0
 errors={"list":[],"ref":{}}
-params={"verbose":True}
+params={"verbose":True,"print_errs":True}
 data = {"main":{},"subsearches":[]}
 
 def init_analyser():
-    global errors, scope_level, data
+    global errors, scope_level, data, logger, parser, lex
     errors={"list":[],"ref":{}}
     scope_level=0
     data = {"main":{},"subsearches":[]}
+    if params["verbose"]:
+        logger.setLevel(logging.DEBUG)
+        ch.setLevel(logging.DEBUG)
+    elif params["print_errs"]:
+        logger.setLevel(logging.ERROR)
+        ch.setLevel(logging.ERROR)
+    else:
+        logger.setLevel(logging.CRITICAL)
+        ch.setLevel(logging.CRITICAL)
+    #Initializing parser only once
+    if lexer is None:
+        logger.info("Lexer initializing")
+        lex.lex(errorlog=logger)
+    if parser is None:
+        logger.info("Yacc initializing")
+        parser = yacc.yacc(debug=True,errorlog=logger)
+    logger.info("Parser initialization finished")
 
 def error_build_token_id(tk):
     return "{}_{}".format(str(tk.lexpos),str(tk.value))
@@ -881,10 +911,10 @@ def print_errors(s):
             st,ed = max(0,len(s) + st), max(0,len(s) + ed)
         if tk is None:
             err_str=s[st:ed]
-            print("[ERROR]\t[{}->{}] {}\n\t{}".format(st,ed,msg,err_str))
+            logger.error("[{}->{}] {}\n\t{}".format(st,ed,msg,err_str))
         else:
             err_str=s[st:min(ed+10,len(s))]
-            print("[ERROR]\t[{}->{}] {} : for value '{}' of type {}\n\t{}".format(st,ed,msg,tk.value,tk.type,err_str))
+            logger.error("[{}->{}] {} : for value '{}' of type {}\n\t{}".format(st,ed,msg,tk.value,tk.type,err_str))
 
 
 #---------------------------
@@ -892,14 +922,15 @@ def print_errors(s):
 #---------------------------
 
 def analyze(s,verbose=False,print_errs=True):
-    global errors, params, data
+    global errors, params, data, logger
     try:
-        init_analyser()
         params["verbose"]=verbose
+        params["print_errs"]=print_errs
+        init_analyser()
         r = yacc.parse(s,tracking=True,debug=False)
         if print_errs:
             print_errors(s)
-        print("[RES]\tfinished")
+        logger.info("[RES] finished")
         data["main"]=r
         return {"data":data,"errors":errors,"errors_count":len(errors["ref"])}
     except SyntaxError:

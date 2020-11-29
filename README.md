@@ -12,8 +12,9 @@ Files are already onboarded in the lib folder but you might want to check for up
 For now, the core of the parser is in the file `spl_validator.py` which describes the syntax of SPL (tokens and grammar rules) and adds so more feature on top of it. The validator can be called using the function `analyze(s,verbose=False,print_errs=True)`.
 
 * `s` is the string to analyze
-* `verbose` (optional,default false) will output more information about element being parsed
-* `print_errs` (optional, default true) will output the errors found (syntax and wrong SPL usages)
+* `print_errs` (optional, default true) will output the errors found (syntax and wrong SPL usages) (logging.ERROR)
+  * If disabled but in verbose mode, errors will not be displayed
+* `verbose` (optional, default false) will output more information about elements being parsed (logging.DEBUG)
 
 Function return an object with the following attributes:
 

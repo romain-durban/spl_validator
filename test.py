@@ -22,7 +22,7 @@ if not conf is None:
 
 		if selected:
 			res["analysed"] += 1
-			r = spl_validator.analyze(test["search"],print_errs=False)
+			r = spl_validator.analyze(test["search"],print_errs=False,verbose=False)
 			if r["errors_count"] == test["exp_err"]:
 				res["success"] += 1
 			else:
