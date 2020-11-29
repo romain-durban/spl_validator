@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='`get_all_windows_index` source=usgs place=*California* | stats count by magType | append maxtime=10 [search index=usgs_* source=usgs place=*California* | stats count] | anomalies'
+s='sourcetype=access_* status!=200 TERM(127.0.0.1) | stats count by index | eval test=2 | bin _time span=10m'
 print(s)
 
 spl_validator.analyze(s,verbose=True)

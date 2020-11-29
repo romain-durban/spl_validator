@@ -21,6 +21,11 @@ Function return an object with the following attributes:
 * `data`: information extracted from the SPL
   * `input`: fields that seem to be used by the query (and probably required in the events)
   * `output`: fields that seem available in the results, this is particularly useful when transforming commands are reducing the number of fields
+  * `fields-effect``: The list of effects each command had on the available fields
+    * `none`: No change done
+    * `replace`: Sets a new list of fields available
+    * `extend`: Adds new fields
+    * `remove`: Removes some fields from the results
 * `errors`: Object containing the errors found in the SPL.
   * `list`: List of errors identifiers in order of appearance
   * `ref`: Dictionnary containing the list of errors associated to a given error identifier
@@ -47,7 +52,14 @@ SPL commands specification is done in the `spl_commands.json` file
 | anomalousvalue | all args | | |
 | anomalies | all args | | also giving the list of fields created |
 | append | all args | | |
+| appendcols | all args | | |
+| appendpipe | all args | | |
+| arules | all args | | |
+| associate | all args | | |
 | audit | | | |
+| autoregress | all args | | case of numbers interval specifically handled for this rule, list of generated fields not handled |
+| bin | all args | | |
+| bucket | all args | | |
 | dedup | all args | | |
 | eval | | | |
 | expand | | | |
