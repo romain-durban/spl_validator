@@ -47,7 +47,7 @@ tokens = [
     'EQ','NEQ','PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'LPAREN','RPAREN','LBRACK','RBRACK','COMMA',
     'NUMBER', 'FLOAT', 'QUOTE', 'COMP_OP', 'PIPE', 
     'MACRO',
-    'NAME','STRING','PATTERN','TIMESPECIFIER'
+    'NAME','STRING','PATTERN','TIMESPECIFIER','DATE'
 ] + list(set(reserved.values())) + list(set([cmd_conf[cmd]["token_name"] for cmd in cmd_conf]))
 
 literals = []
@@ -67,7 +67,7 @@ t_RBRACK  = r'\]'
 t_PIPE = r'\|'
 t_COMMA = r'\,'
 t_QUOTE = r'"'
-t_COMP_OP = r'(<|>|<=|>=)'
+t_COMP_OP = r'(<=|>=|<|>)'
 
 t_ignore = " \r\n\t"
 
@@ -84,6 +84,20 @@ def t_TIMESPECIFIER(t):
     r'[0-9a-zA-Z\+\-]*@[0-9a-zA-Z\+\-]+'
     return t
 
+def t_DATE(t):
+    r'\d+/\d+/\d+:\d+:\d+:\d+'
+    return t
+
+def t_FLOAT(t):
+    r'\d*\.\d+'
+    t.value = float(t.value)
+    return t
+
+def t_NUMBER(t):
+    r'\d+'
+    t.value = int(t.value)
+    return t
+
 #Strings
 def t_PATTERN(t):
     r'(\*[^\*\s]+\*|\*[a-zA-Z0-9_\.\{\}\-]+|[a-zA-Z0-9_\.\{\}\-]+\*)'
@@ -95,22 +109,12 @@ def t_STRING(t):
     return t
 
 def t_NAME(t):
-    r'[a-zA-Z0-9_\.\{\}\-]+'
+    r'[a-zA-Z0-9_\{\}][a-zA-Z0-9_\.\{\}\-]*'
     global cmd_conf
     if t.value.lower() in cmd_conf:
         t.type = cmd_conf[t.value.lower()]["token_name"]    # Check for command names, lowercase
     else:
         t.type = reserved.get(t.value.lower(),"NAME")       # Check for reserved words, lowercase
-    return t
-
-def t_FLOAT(t):
-    r'\d*\.\d+'
-    t.value = float(t.value)
-    return t
-
-def t_NUMBER(t):
-    r'\d+'
-    t.value = int(t.value)
     return t
 
 def t_error(t):
@@ -277,6 +281,14 @@ def p_filter_phrases(p):
               | TERM_OP LPAREN value RPAREN'''
     p[0] = []
 
+def p_filter_any(p):
+    'filter : NAME EQ TIMES'
+    p[0] = [p[1]]
+
+def p_filter_notany(p):
+    'filter : NAME NEQ TIMES'
+    p[0] = [p[1]]
+
 def p_filter_raw(p):
     'filter : value'
     p[0] = [None]
@@ -373,7 +385,7 @@ def p_commands_error(p):
         report_error(p.lexpos(2),p[4].lexpos,"Syntax error in command {}".format(p[3]),p[4])
     else:
         report_error(p.lexpos(2),p[3].lexpos,"Unknown command name",p[3])
-    p[0] = {"input":[],"output":[],"fields-effect":"none"}
+    p[0] = p[1]
 
 def p_commands_names(p):
     '''commands_names : CMD_ABSTRACT
@@ -407,6 +419,7 @@ def p_commands_names(p):
                       | CMD_SORT
                       | CMD_STATS
                       | CMD_TABLE
+                      | CMD_TRANSACTION
                       | CMD_WHERE 
                       '''
     p[0] = p[1]
@@ -449,9 +462,7 @@ def p_command_stats(p):
     p[0] = fields
     
     if len(p) == 6 or len(p) == 4:
-        for arg in p[2]:
-            if not arg in cmd_conf[p[1]]["args"]:
-                report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(p[2],p[1],str(cmd_conf[p[1]]["args"])),None,value=p[2])
+        checkArgs(p,p[2])
     logger.info("Parsed a STATS: {}".format(fields))
 
 # TABLE
@@ -467,7 +478,7 @@ def p_command_eval(p):
     logger.info("Parsed a EVAL: {}".format(p[0]))
 
 def p_command_eval_exprs(p):
-    '''eval_exprs : eval_expr_assign COMMA eval_exprs
+    '''eval_exprs : eval_exprs COMMA eval_expr_assign
                   | eval_expr_assign'''
     if len(p) == 4:
         p[0] = [p[1]] + p[3]
@@ -477,6 +488,10 @@ def p_command_eval_exprs(p):
 def p_command_eval_expr_assign(p):
     'eval_expr_assign : field_name EQ expression'
     p[0] = p[1]
+
+def p_command_eval_expr_fun(p):
+    'eval_expr_fun : CMD_EVAL LPAREN expression RPAREN'
+    p[0] = p[3]
 
 # FIELDS COMMAND
 def p_command_fields_keep(p):
@@ -542,9 +557,7 @@ def p_command_dedup_args(p):
     else:
         p[0] = {"input":p[2],"output":[],"fields-effect":"none"}
         args=p[2]
-    for arg in args:
-        if not arg in cmd_conf[p[1]]["args"]:
-            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
+    checkArgs(p,args)
 
 def p_command_dedup_noargs(p):
     '''command : CMD_DEDUP NUMBER fields_list SORTBY_CLAUSE sort_clause
@@ -573,13 +586,10 @@ def p_command_basic_no_field(p):
                | CMD_FILLNULL
                | CMD_REVERSE
                | CMD_APPENDPIPE
-               | CMD_ASSOCIATE'''
+               | CMD_ASSOCIATE
+               | CMD_TRANSACTION'''
     p[0] = {"input":[],"output":[],"fields-effect":"none"}
-    if p[1] == "anomalydetection":
-        p[0]["output"] = cmd_conf[p[1]]["created_fields"]["annotate_filter"]
-    elif p[1] == "associate":
-        p[0]["output"] = cmd_conf[p[1]]["created_fields"]
-        p[0]["fields-effect"] = "replace"
+    p[0]=commands_args_and_fields_output_update(p,[])
 
 # BASIC SINGLE FIELD COMMAND
 def p_command_basic_single_field(p):
@@ -591,9 +601,7 @@ def p_command_basic_single_field(p):
 def p_command_basic_single_arg(p):
     '''command : CMD_ANALYSEFIELDS args_term
                | CMD_APPENDPIPE args_term'''
-    for arg in p[2]:
-        if not arg in cmd_conf[p[1]]["args"]:
-            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
+    checkArgs(p,p[2])
     if p[1] in ["af","analyzefields"]:
         p[0] = {"input":p[2].values(),"output":cmd_conf[p[1]]["created_fields"],"fields-effect":"replace"}
     else: 
@@ -607,23 +615,11 @@ def p_command_basic_only_args(p):
                | CMD_ANOMALOUSVALUE args_list
                | CMD_ANOMALYDETECTION args_list
                | CMD_FILLNULL args_list
-               | CMD_ASSOCIATE args_list'''
+               | CMD_ASSOCIATE args_list
+               | CMD_TRANSACTION args_list'''
     p[0] = {"input":[],"output":[],"fields-effect":"none"}
-    for arg in p[2]:
-        if not arg in cmd_conf[p[1]]["args"]:
-            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
-    if p[1] == "anomalydetection":
-        if "action" in p[2]:
-            if p[2]["action"] in ["filter","annotate"]:
-                p[0]["output"] = cmd_conf[p[1]]["created_fields"]["annotate_filter"]
-            elif p[2]["action"] in ["summary"]:
-                p[0]["output"] = cmd_conf[p[1]]["created_fields"]["summary"]
-                p[0]["fields-effect"]="replace"
-    elif p[1] == "associate":
-        p[0]["output"] = cmd_conf[p[1]]["created_fields"]
-        p[0]["fields-effect"] = "replace"
-
-
+    checkArgs(p,p[2])
+    p[0]=commands_args_and_fields_output_update(p,p[2])
 
 # BASIC ONLY FIELDS
 def p_command_basic_only_fields(p):
@@ -633,37 +629,72 @@ def p_command_basic_only_fields(p):
                | CMD_ANOMALOUSVALUE fields_list
                | CMD_ANOMALYDETECTION fields_list
                | CMD_ARULES fields_list
-               | CMD_ASSOCIATE fields_list'''
+               | CMD_ASSOCIATE fields_list
+               | CMD_TRANSACTION fields_list'''
     p[0] = {"input":p[2],"output":[],"fields-effect":"none"}
-    if p[1] == "anomalydetection":
-        p[0]["output"] = cmd_conf[p[1]]["created_fields"]["annotate_filter"]
-    elif p[1] == "associate":
-        p[0]["output"] = cmd_conf[p[1]]["created_fields"]
-        p[0]["fields-effect"] = "replace"
+    p[0]=commands_args_and_fields_output_update(p,[])
 
 # BASIC FIELDS AND ARGS
-def p_command_basic_field_and_args(p):
+def p_command_basic_args_and_fields(p):
     '''command : CMD_ADDCOLTOTALS args_list fields_list
                | CMD_ADDTOTALS args_list fields_list
                | CMD_FILLNULL args_list fields_list
                | CMD_ANOMALOUSVALUE args_list fields_list
                | CMD_ANOMALYDETECTION args_list fields_list
                | CMD_ARULES args_list fields_list
-               | CMD_ASSOCIATE args_list fields_list'''
+               | CMD_ASSOCIATE args_list fields_list
+               | CMD_TRANSACTION args_list fields_list'''
     p[0] = {"input":p[3],"output":[],"fields-effect":"none"}
-    for arg in p[2]:
-        if not arg in cmd_conf[p[1]]["args"]:
-            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
+    checkArgs(p,p[2])
+    p[0]=commands_args_and_fields_output_update(p,p[2])
+
+def p_command_basic_fields_and_args(p):
+    '''command : CMD_ADDCOLTOTALS fields_list args_list
+               | CMD_ADDTOTALS fields_list args_list
+               | CMD_FILLNULL fields_list args_list
+               | CMD_ANOMALOUSVALUE fields_list args_list
+               | CMD_ANOMALYDETECTION fields_list args_list
+               | CMD_ARULES fields_list args_list
+               | CMD_ASSOCIATE fields_list args_list
+               | CMD_TRANSACTION fields_list args_list'''
+    p[0] = {"input":p[2],"output":[],"fields-effect":"none"}
+    checkArgs(p,p[3])
+    p[0]=commands_args_and_fields_output_update(p,p[3])
+
+def p_command_basic_args_and_fields_and_args(p):
+    '''command : CMD_ADDCOLTOTALS args_list fields_list args_list
+               | CMD_ADDTOTALS args_list fields_list args_list
+               | CMD_FILLNULL args_list fields_list args_list
+               | CMD_ANOMALOUSVALUE args_list fields_list args_list
+               | CMD_ANOMALYDETECTION args_list fields_list args_list
+               | CMD_ARULES args_list fields_list args_list
+               | CMD_ASSOCIATE args_list fields_list args_list
+               | CMD_TRANSACTION args_list fields_list args_list'''
+    p[0] = {"input":p[3],"output":[],"fields-effect":"none"}
+    args=p[2]
+    for arg in p[4]:
+        args[arg]=p[4][arg]
+    checkArgs(p,args)
+    p[0]=commands_args_and_fields_output_update(p,args)
+    
+# Performs the transformations necessary for the generic rules of command
+# containing arguments, a fields list or both or even none of all
+def commands_args_and_fields_output_update(p,args):
+    global cmd_conf
+    out=p[0]
     if p[1] == "anomalydetection":
-        if "action" in p[2]:
-            if p[2]["action"] in ["filter","annotate"]:
-                p[0]["output"] = cmd_conf[p[1]]["created_fields"]["annotate_filter"]
-            elif p[2]["action"] in ["summary"]:
-                p[0]["output"] = cmd_conf[p[1]]["created_fields"]["summary"]
-                p[0]["fields-effect"]="replace"
+        if "action" in args:
+            if args["action"] in ["filter","annotate"]:
+                out["output"] = cmd_conf[p[1]]["created_fields"]["annotate_filter"]
+            elif args["action"] in ["summary"]:
+                out["output"] = cmd_conf[p[1]]["created_fields"]["summary"]
+                out["fields-effect"]="replace"
+        else:
+            out["output"] = cmd_conf[p[1]]["created_fields"]["annotate_filter"]
     elif p[1] == "associate":
-        p[0]["output"] = cmd_conf[p[1]]["created_fields"]
-        p[0]["fields-effect"] = "replace"
+        out["output"] = cmd_conf[p[1]]["created_fields"]
+        out["fields-effect"] = "replace"
+    return out
 
 # WHERE
 def p_command_where(p):
@@ -694,9 +725,7 @@ def p_command_lookup_args(p):
         p[0] = {"input":[],"output":[],"fields-effect":"none"}
     if len(p) > 4:
         p[0]["output"] = p[5]
-    for arg in p[2]:
-        if not arg in cmd_conf[p[1]]["args"]:
-            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
+    checkArgs(p,p[2])
 
 # INPUTLOOKUP
 def p_command_inputlookup(p):
@@ -707,9 +736,7 @@ def p_command_inputlookup(p):
 
     p[0] = {"input":[],"output":[],"fields-effect":"none"}
     if len(p) == 6 or len(p) == 4:
-        for arg in p[2]:
-            if not arg in cmd_conf[p[1]]["args"]:
-                report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
+        checkArgs(p,p[2])
 
 # OUTPUTLOOKUP
 def p_command_outputlookup(p):
@@ -718,9 +745,7 @@ def p_command_outputlookup(p):
 
     p[0] = {"input":[],"output":[],"fields-effect":"none"}
     if len(p) == 4:
-        for arg in p[2]:
-            if not arg in cmd_conf[p[1]]["args"]:
-                report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
+        checkArgs(p,p[2])
 # ACCUM
 def p_command_accum(p):
     '''command : CMD_ACCUM field_name AS_CLAUSE field_name
@@ -738,11 +763,9 @@ def p_command_anomalies(p):
                | CMD_ANOMALIES'''
     ipt=[]
     if len(p) == 5 or len(p) == 3:
-        for arg in p[2]:
-            if not arg in cmd_conf[p[1]]["args"]:
-                report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
-            elif arg == "field":
-                ipt.append(p[2]["field"])
+        checkArgs(p,p[2])
+        if "field" in p[2]:
+            ipt.append(p[2]["field"])                
     
     p[0] = {"input":ipt,"output":cmd_conf[p[1]]["created_fields"],"fields-effect":"extend"}
 
@@ -753,9 +776,7 @@ def p_command_append(p):
                | CMD_APPEND subsearch
                | CMD_APPENDCOLS subsearch'''
     if len(p) == 4:
-        for arg in p[2]:
-            if not arg in cmd_conf[p[1]]["args"]:
-                report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
+        checkArgs(p,p[2])
         p[0] = {"input":p[3]["input"],"output":p[3]["output"],"fields-effect":"extend"}
     else:
         p[0] = {"input":p[2]["input"],"output":p[2]["output"],"fields-effect":"extend"}
@@ -765,13 +786,12 @@ def p_command_appendpipe(p):
     '''command : CMD_APPENDPIPE args_term subpipeline
                | CMD_APPENDPIPE subpipeline'''
     if len(p) == 4:
-        for arg in p[2]:
-            if not arg in cmd_conf[p[1]]["args"]:
-                report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
+        checkArgs(p,p[2])
         p[0] = {"input":p[3]["input"],"output":p[3]["output"],"fields-effect":"extend"}
     else:
         p[0] = {"input":p[2]["input"],"output":p[2]["output"],"fields-effect":"extend"}
 
+# AUTOREGRESS
 def p_command_autoregress(p):
     '''command : CMD_AUTOREGRESS rfield_term NAME EQ NUMBER
                | CMD_AUTOREGRESS field_name NAME EQ NUMBER
@@ -780,27 +800,58 @@ def p_command_autoregress(p):
                | CMD_AUTOREGRESS rfield_term
                | CMD_AUTOREGRESS field_name'''
     if len(p) == 6 :
-        if not p[3] in cmd_conf[p[1]]["args"]:
-            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(p[3],p[1],str(cmd_conf[p[1]]["args"])),None,value=p[3])
-    if isinstance(p[2],dict):
-        p[0] = {"input":p[2]["input"],"output":p[2]["output"],"fields-effect":"extend"}
-    else:
-        p[0] = {"input":p[2],"output":[],"fields-effect":"none"}
-
-# BIN / BUCKET
-def p_command_bin(p):
-    '''command : CMD_BIN rfield_term args_list
-               | CMD_BIN field_name args_list
-               | CMD_BIN rfield_term
-               | CMD_BIN field_name'''
-    if len(p) == 4:
-        for arg in p[3]:
-            if not arg in cmd_conf[p[1]]["args"]:
-                report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
+        checkArgs(p,p[3])
     if isinstance(p[2],dict):
         p[0] = {"input":p[2]["input"],"output":p[2]["output"],"fields-effect":"extend"}
     else:
         p[0] = {"input":[p[2]],"output":[],"fields-effect":"none"}
+
+# BIN / BUCKET
+def p_command_bin(p):
+    '''command : CMD_BIN args_list rfield_term args_list
+               | CMD_BIN args_list field_name args_list
+               | CMD_BIN rfield_term args_list
+               | CMD_BIN field_name args_list
+               | CMD_BIN args_list rfield_term
+               | CMD_BIN args_list field_name
+               | CMD_BIN rfield_term
+               | CMD_BIN field_name'''
+    args=[]
+    if len(p) == 5:
+        args=list(p[2].keys())+list(p[4].keys())
+    if len(p) == 4:
+        if isinstance(p[2],dict):
+            if "input" in p[2]: #CMD_BIN rfield_term args_list
+                args=list(p[3].keys())
+            else: # | CMD_BIN args_list
+                args=list(p[2].keys())
+        else:
+            args=list(p[3].keys())
+    checkArgs(p,args)
+    if len(p) == 5 and isinstance(p[3],dict):
+        p[0] = {"input":p[3]["input"],"output":p[3]["output"],"fields-effect":"extend"}
+    elif len(p) == 4 and isinstance(p[2],dict) and "input" in p[2]:
+        p[0] = {"input":p[2]["input"],"output":p[2]["output"],"fields-effect":"extend"}
+    elif len(p) == 4 and isinstance(p[3],dict) and "input" in p[3]:
+        p[0] = {"input":p[3]["input"],"output":p[3]["output"],"fields-effect":"extend"}
+    elif len(p) == 3 and isinstance(p[2],dict):
+        p[0] = {"input":p[2]["input"],"output":p[2]["output"],"fields-effect":"extend"}
+    elif len(p) == 3:
+        p[0] = {"input":[p[2]],"output":[],"fields-effect":"none"}
+    else:
+        if isinstance(p[3],dict):
+            p[0] = {"input":[p[2]],"output":[],"fields-effect":"none"}
+        else:
+            p[0] = {"input":[p[3]],"output":[],"fields-effect":"none"}
+
+#---------------------------
+# Custom command function
+#---------------------------
+def checkArgs(p,args):
+    global cmd_conf
+    for arg in args:
+        if not arg in cmd_conf[p[1]]["args"]:
+            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
 
 #---------------------------
 # AGGREGATION fields
@@ -867,8 +918,14 @@ def p_rfield_term(p):
     p[0] = {"input":[p[1]],"output":[p[3]]}
 
 def p_field_name(p):
-    '''field_name : NAME'''
+    '''field_name : NAME
+                  | PATTERN'''
     p[0] = p[1]
+
+def p_field_name_agg_fun(p):
+    'field_name : agg_fun LPAREN field_name RPAREN'
+    # Case when a field has been named after the use of an agregation function
+    p[0]="{}({})".format(p[1],p[3])
 
 #---------------------------
 # Args
@@ -884,9 +941,17 @@ def p_args_list(p):
         p[0] = p[1].copy()
 
 def p_args_term(p):
-    'args_term : NAME EQ value'
+    '''args_term : NAME EQ args_value
+                 | commands_names EQ args_value'''
+    # Command names have to be allowed as argument names for cases
+    # like append which can be both a command or an argument
     p[0]={}
     p[0][p[1]]=p[3]
+
+def p_args_value(p):
+    '''args_value : value
+                  | eval_expr_fun'''
+    p[0] = p[1]
 
 #---------------------------
 # Values
@@ -916,6 +981,10 @@ def p_value_string(p):
 
 def p_value_time(p):
     'value : TIMESPECIFIER'
+    p[0]=str(p[1])
+
+def p_value_date(p):
+    'value : DATE'
     p[0]=str(p[1])
 
 def p_values_list(p):

@@ -12,6 +12,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | dedup 5 host,sourcetype keepevents=true 
 '''
 s='sourcetype=access_* status!=200 TERM(127.0.0.1) | stats count by index | eval test=2 | bin _time span=10m'
+s='index=idx | autoregress count p=2-5'
 print(s)
 
 spl_validator.analyze(s,verbose=True)

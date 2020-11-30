@@ -6,9 +6,9 @@
     "addtotals" : {"token_name":"CMD_ADDTOTALS","args":["row","col","labelfield","label","fieldname"],"created_fields":[]},
     "analyzefields" : {"token_name":"CMD_ANALYSEFIELDS","args":["classfield"],"created_fields":["field","count","cocur","acc","balacc"]},
     "af" : {"token_name":"CMD_ANALYSEFIELDS","args":["classfield"],"created_fields":["field","count","cocur","acc","balacc"]},
-    "anomalies" : {"token_name":"CMD_ANOMALIES","args":["threshold","labelonly","normalize","maxvalues","field","denylist","denylistthreshold"],"created_fields":["unexpectedness"]},
+    "anomalies" : {"token_name":"CMD_ANOMALIES","args":["threshold","labelonly","normalize","maxvalues","field","denylist","list","denylistthreshold"],"created_fields":["unexpectedness"]},
     "anomalousvalue": {"token_name":"CMD_ANOMALOUSVALUE","args":["maxanofreq","minnormfreq","minsupcount","minsupfreq","action","pthresh"],"created_fields":[]},
-    "anomalydetection": {"token_name":"CMD_ANOMALYDETECTION","args":["method","action","pthresh","cutoff"],"created_fields":{"annotate_filter":["log_event_prob","probable_cause","probable_cause_freq","max_freq"],"summary":["num_anomalies","thresh","max_logprob","min_logprob","1st_quartile","3rd_quartile"]}},
+    "anomalydetection": {"token_name":"CMD_ANOMALYDETECTION","args":["method","action","pthresh","cutoff","mark","param","uselower","maxanofreq","minnormfreq","minsupcount","minsupfreq"],"created_fields":{"annotate_filter":["log_event_prob","probable_cause","probable_cause_freq","max_freq"],"summary":["num_anomalies","thresh","max_logprob","min_logprob","1st_quartile","3rd_quartile"]}},
     "append": {"token_name":"CMD_APPEND","args":["extendtimerange","maxtime","maxout","timeout"],"created_fields":[]},
     "appendcols": {"token_name":"CMD_APPENDCOLS","args":["override","maxtime","maxout","timeout"],"created_fields":[]},
     "appendpipe": {"token_name":"CMD_APPENDPIPE","args":["run_in_preview"],"created_fields":[]},
@@ -32,6 +32,7 @@
     "search" : {"token_name":"CMD_SEARCH","args":[],"created_fields":[]},
     "sort" : {"token_name":"CMD_SORT","args":[],"created_fields":[]},
     "stats" : {"token_name":"CMD_STATS","args":["partitions","allnum","delim"],"created_fields":[]},
-    "table" : {"token_name":"CMD_TABLE","args":[],"created_fields":[]}, 
+    "table" : {"token_name":"CMD_TABLE","args":[],"created_fields":[]},
+    "transaction" : {"token_name":"CMD_TRANSACTION","args":["name","connected","endswith","keeporphans","maxspan","maxpause","maxevents","unifyends","keepevicted","maxopenevents","maxopentxn","delim","mvlist","mvraw","nullstr"],"created_fields":[]}, 
     "where" : {"token_name":"CMD_WHERE","args":[],"created_fields":[]}
 }

@@ -45,6 +45,211 @@
 			"search":"index=\"idx\" | accum score sum_score",
 			"exp_err":1,
 			"tags":["search","accum","valid"]
+		},
+		"splunk_abstract": {
+			"search":"index=\"idx\" |abstract maxlines=5",
+			"exp_err":0,
+			"tags":["search","abstract","valid","splunk_doc"]
+		},
+		"splunk_accum": {
+			"search":"sourcetype=access_* status=200 categoryId=STRATEGY | chart count AS views by productId | accum views as TotalViews",
+			"exp_err":0,
+			"tags":["search","accum","valid","splunk_doc","chart"]
+		},
+		"splunk_addcoltotals_1": {
+			"search":"index=idx | addcoltotals labelfield=change_name label=ALL",
+			"exp_err":0,
+			"tags":["search","addcoltotals","valid","splunk_doc"]
+		},
+		"splunk_addcoltotals_2": {
+			"search":"sourcetype=access_* | table userId bytes avgTime duration | addcoltotals bytes duration",
+			"exp_err":0,
+			"tags":["search","addcoltotals","valid","splunk_doc","table"]
+		},
+		"splunk_addcoltotals_3": {
+			"search":"index=idx | fields user*, *size | addcoltotals *size",
+			"exp_err":0,
+			"tags":["search","addcoltotals","valid","splunk_doc","fields"]
+		},
+		"splunk_addcoltotals_4": {
+			"search":"index=_internal source=\"metrics.log\" group=pipeline | stats avg(cpu_seconds) by processor | addcoltotals labelfield=processor",
+			"exp_err":0,
+			"tags":["search","addcoltotals","valid","splunk_doc","stats"]
+		},
+		"splunk_accum_1": {
+			"search":"index=idx | addinfo",
+			"exp_err":0,
+			"tags":["search","addinfo","valid","splunk_doc"]
+		},
+		"splunk_accum_2": {
+			"search":"index=idx | stats latest(_time) AS latest_time BY host | addinfo | eval latest_age = info_max_time - latest_time | fields - info_* | inputlookup append=t expected_hosts | fillnull value=9999 latest_age | dedup host | where latest_age > 42",
+			"exp_err":0,
+			"tags":["search","addinfo","valid","splunk_doc","stats","dedup","eval","fields","inputlookup","fillnull","where"]
+		},
+		"splunk_addtotals_1": {
+			"search":"source=\"addtotalsData.csv\" | chart sum(sales) BY products quarter | addtotals",
+			"exp_err":0,
+			"tags":["search","addtotals","valid","splunk_doc","chart"]
+		},
+		"splunk_addtotals_2": {
+			"search":"index=idx | addtotals fieldname=sum",
+			"exp_err":0,
+			"tags":["search","addtotals","valid","splunk_doc"]
+		},
+		"splunk_addtotals_3": {
+			"search":"index=idx | addtotals fieldname=TotalAmount amount* *size*",
+			"exp_err":0,
+			"tags":["search","addtotals","valid","splunk_doc"]
+		},
+		"splunk_addtotals_4": {
+			"search":"source=\"addtotalsData.csv\" | stats sum(quota) by quarter| addtotals row=f col=t labelfield=quarter sum(quota)",
+			"exp_err":0,
+			"tags":["search","addtotals","valid","splunk_doc","stats"]
+		},
+		"splunk_addtotals_5": {
+			"search":"source=\"addtotalsData.csv\" | chart sum(sales) by products quarter| addtotals col=t labelfield=products label=\"Quarterly Totals\" fieldname=\"Product Totals\"",
+			"exp_err":0,
+			"tags":["search","addtotals","valid","splunk_doc","chart"]
+		},
+		"splunk_analyzefields": {
+			"search":"index=idx | analyzefields classfield=is_activated",
+			"exp_err":0,
+			"tags":["search","analyzefields","valid","splunk_doc"]
+		},
+		"splunk_anomalies_1": {
+			"search":"index=idx | anomalies list=boringevents | sort -unexpectedness",
+			"exp_err":0,
+			"tags":["search","anomalies","valid","splunk_doc","sort"]
+		},
+		"splunk_anomalies_2": {
+			"search":"index=idx | transaction maxpause=2s | anomalies",
+			"exp_err":0,
+			"tags":["search","anomalies","valid","splunk_doc","transaction"]
+		},
+		"splunk_anomalies_3": {
+			"search":"index=idx | anomalies by source",
+			"exp_err":0,
+			"tags":["search","anomalies","valid","splunk_doc"]
+		},
+		"splunk_anomalies_4": {
+			"search":"index=_internal | anomalies BY group | search group=*",
+			"exp_err":0,
+			"tags":["search","anomalies","valid","splunk_doc"]
+		},
+		"splunk_anomalousvalue_1": {
+			"search":"index=_internal | anomalousvalue",
+			"exp_err":0,
+			"tags":["search","anomalousvalue","valid","splunk_doc"]
+		},
+		"splunk_anomalousvalue_2": {
+			"search":"index=_internal | anomalousvalue action=filter pthresh=0.02",
+			"exp_err":0,
+			"tags":["search","anomalousvalue","valid","splunk_doc"]
+		},
+		"splunk_anomalydetection_1": {
+			"search":"index=_internal | anomalydetection",
+			"exp_err":0,
+			"tags":["search","anomalydetection","valid","splunk_doc"]
+		},
+		"splunk_anomalydetection_2": {
+			"search":"index=_internal | anomalydetection method=histogram action=filter",
+			"exp_err":0,
+			"tags":["search","anomalydetection","valid","splunk_doc"]
+		},
+		"splunk_anomalydetection_3": {
+			"search":"index=_internal | anomalydetection action=summary",
+			"exp_err":0,
+			"tags":["search","anomalydetection","valid","splunk_doc"]
+		},
+		"splunk_anomalydetection_4": {
+			"search":"index=_internal | anomalydetection method=zscore action=filter pthresh=0.05",
+			"exp_err":0,
+			"tags":["search","anomalydetection","valid","splunk_doc"]
+		},
+		"splunk_anomalydetection_5": {
+			"search":"index=_internal | anomalydetection method=iqr action=tf param=4 uselower=true mark=true",
+			"exp_err":0,
+			"tags":["search","anomalydetection","valid","splunk_doc"]
+		},
+		"splunk_append_1": {
+			"search":"source=usgs place=*California* | stats count by magType | append [search index=usgs_* source=usgs place=*California* | stats count]",
+			"exp_err":0,
+			"tags":["search","append","valid","splunk_doc","stats","subsearch"]
+		},
+		"splunk_append_2": {
+			"search":"sourcetype=access_* action=purchase | stats dc(clientip) BY categoryId | append [search sourcetype=access_* action=purchase | top 1 clientip BY categoryId] | table categoryId, dc(clientip), clientip, count",
+			"exp_err":0,
+			"tags":["search","append","valid","splunk_doc","stats","subsearch","top"]
+		},
+		"splunk_append_3": {
+			"search":"sourcetype=access_* | stats dc(clientip), count by method | append maxtime=30 maxout=1000 [search sourcetype=access_* | top 1 clientip by method]",
+			"exp_err":0,
+			"tags":["search","append","valid","splunk_doc","stats","subsearch","top"]
+		},
+		"splunk_append_4": {
+			"search":"index=_internal earliest=11/20/2017:00:00:00 latest=11/30/2017:00:00:00 |append extendtimerange=true [search index=_audit earliest=11/1/2017:00:00:00 latest=11/25/2017:00:00:00] |timechart span=1d count",
+			"exp_err":0,
+			"tags":["search","append","valid","splunk_doc","stats","subsearch","timechart","date_field"]
+		},
+		"splunk_appendcol_1": {
+			"search":"source=usgs place=*California* | appendcols [search 404]",
+			"exp_err":0,
+			"tags":["search","appendcol","valid","splunk_doc","subsearch"]
+		},
+		"splunk_appendcol_2": {
+			"search":"index=idx | stats dc(userID) as totalUsers | appendcols [ search index=idx AND \"text\" | addinfo | where _time >= info_min_time AND _time <=info_max_time | stats count(field) as variableA ] | eval variableB = exact(variableA/totalUsers)",
+			"exp_err":0,
+			"tags":["search","appendcol","valid","splunk_doc","subsearch","stats","addinfo","where","eval"]
+		},
+		"splunk_appendpipe": {
+			"search":"index=_audit | stats count by action user | appendpipe [stats sum(count) as count by action | eval user = \"TOTAL - ALL USERS\"] | sort action",
+			"exp_err":0,
+			"tags":["search","appendpipe","valid","splunk_doc","subsearch","stats","eval","sort"]
+		},
+		"splunk_arules_1": {
+			"search":"index=idx | arules field1 field2 field3",
+			"exp_err":0,
+			"tags":["search","arules","valid","splunk_doc"]
+		},
+		"splunk_arules_2": {
+			"search":"index=idx | arules sup=3 conf=.6 field1 field2 field3",
+			"exp_err":0,
+			"tags":["search","arules","valid","splunk_doc"]
+		},
+		"splunk_associate_1": {
+			"search":"sourcetype=access_* status!=200 | fields method, status | associate improv=0.05 | table Reference_Key, Reference_Value, Target_Key, Top_Conditional_Value, Description",
+			"exp_err":0,
+			"tags":["search","associate","valid","splunk_doc","fields","table"]
+		},
+		"splunk_associate_2": {
+			"search":"index=_internal sourcetype=splunkd | associate supcnt=3",
+			"exp_err":0,
+			"tags":["search","associate","valid","splunk_doc"]
+		},
+		"splunk_associate_3": {
+			"search":"host=\"reports\" | associate supcnt=50 supfreq=0.2 improv=0.5",
+			"exp_err":0,
+			"tags":["search","associate","valid","splunk_doc"]
+		},
+		"splunk_audit": {
+			"search":"index=idx | audit",
+			"exp_err":0,
+			"tags":["search","audit","valid","splunk_doc"]
+		},
+		"splunk_autoregress_1": {
+			"search":"index=idx | autoregress ip AS old_ip p=3",
+			"exp_err":0,
+			"tags":["search","autoregress","valid","splunk_doc"]
+		},
+		"splunk_autoregress_2": {
+			"search":"index=idx | autoregress count p=2-5",
+			"exp_err":0,
+			"tags":["search","autoregress","valid","splunk_doc"]
+		},
+		"splunk_autoregress_3": {
+			"search":"index=idx | eval rawlen=len(_raw) | autoregress rawlen p=1-4 | eval moving_average=(rawlen + rawlen_p1 + rawlen_p2 + rawlen_p3 +rawlen_p4 ) /5",
+			"exp_err":0,
+			"tags":["search","autoregress","valid","splunk_doc","eval"]
 		}
 	}
 }

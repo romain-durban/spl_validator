@@ -75,6 +75,7 @@ SPL commands specification is done in the `spl_commands.json` file
 | sort | | | |
 | stats | first group of args | arg after group by | |
 | table | | | |
+| transaction | all args | list of fields for arg mvlist because that is a nightmare to handle | |
 | where | | | |
 
 
