@@ -11,8 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='sourcetype=access_* status!=200 TERM(127.0.0.1) | stats count by index | eval test=2 | bin _time span=10m'
-s='index=idx | autoregress count p=2-5'
+s='sourcetype=access_* status=200 action=purchase | top 1 showperc=f productName countfield=total by categoryId showperc=f | addtotals row=1 host,user label=a col=3'
 print(s)
 
 spl_validator.analyze(s,verbose=True)

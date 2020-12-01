@@ -88,16 +88,6 @@ def t_DATE(t):
     r'\d+/\d+/\d+:\d+:\d+:\d+'
     return t
 
-def t_FLOAT(t):
-    r'\d*\.\d+'
-    t.value = float(t.value)
-    return t
-
-def t_NUMBER(t):
-    r'\d+'
-    t.value = int(t.value)
-    return t
-
 #Strings
 def t_PATTERN(t):
     r'(\*[^\*\s]+\*|\*[a-zA-Z0-9_\.\{\}\-]+|[a-zA-Z0-9_\.\{\}\-]+\*)'
@@ -115,6 +105,18 @@ def t_NAME(t):
         t.type = cmd_conf[t.value.lower()]["token_name"]    # Check for command names, lowercase
     else:
         t.type = reserved.get(t.value.lower(),"NAME")       # Check for reserved words, lowercase
+    if t.value.isdigit():
+        t.type = "NUMBER"
+    return t
+
+def t_FLOAT(t):
+    r'\d*\.\d+'
+    t.value = float(t.value)
+    return t
+
+def t_NUMBER(t):
+    r'\d+'
+    t.value = int(t.value)
     return t
 
 def t_error(t):
@@ -404,6 +406,7 @@ def p_commands_names(p):
                       | CMD_AUDIT
                       | CMD_AUTOREGRESS
                       | CMD_BIN
+                      | CMD_BUCKETDIR
                       | CMD_DEDUP
                       | CMD_EVAL
                       | CMD_EXPAND
@@ -419,6 +422,7 @@ def p_commands_names(p):
                       | CMD_SORT
                       | CMD_STATS
                       | CMD_TABLE
+                      | CMD_TOP
                       | CMD_TRANSACTION
                       | CMD_WHERE 
                       '''
@@ -464,11 +468,6 @@ def p_command_stats(p):
     if len(p) == 6 or len(p) == 4:
         checkArgs(p,p[2])
     logger.info("Parsed a STATS: {}".format(fields))
-
-# TABLE
-def p_command_table(p):
-    '''command : CMD_TABLE fields_list'''
-    p[0] = {"input":p[2],"output":p[2],"fields-effect":"replace"}
 
 # EVAL
 def p_command_eval(p):
@@ -610,72 +609,30 @@ def p_command_basic_single_arg(p):
 # BASIC ONLY ARGS COMMAND
 def p_command_basic_only_args(p):
     '''command : CMD_ABSTRACT args_list
-               | CMD_ADDCOLTOTALS args_list
-               | CMD_ADDTOTALS args_list
-               | CMD_ANOMALOUSVALUE args_list
-               | CMD_ANOMALYDETECTION args_list
-               | CMD_FILLNULL args_list
-               | CMD_ASSOCIATE args_list
-               | CMD_TRANSACTION args_list'''
+               | CMD_BUCKETDIR args_list'''
     p[0] = {"input":[],"output":[],"fields-effect":"none"}
     checkArgs(p,p[2])
     p[0]=commands_args_and_fields_output_update(p,p[2])
 
 # BASIC ONLY FIELDS
 def p_command_basic_only_fields(p):
-    '''command : CMD_ADDCOLTOTALS fields_list
-               | CMD_ADDTOTALS fields_list
-               | CMD_FILLNULL fields_list
-               | CMD_ANOMALOUSVALUE fields_list
-               | CMD_ANOMALYDETECTION fields_list
-               | CMD_ARULES fields_list
-               | CMD_ASSOCIATE fields_list
-               | CMD_TRANSACTION fields_list'''
+    '''command : CMD_TABLE fields_list'''
     p[0] = {"input":p[2],"output":[],"fields-effect":"none"}
     p[0]=commands_args_and_fields_output_update(p,[])
 
 # BASIC FIELDS AND ARGS
 def p_command_basic_args_and_fields(p):
-    '''command : CMD_ADDCOLTOTALS args_list fields_list
-               | CMD_ADDTOTALS args_list fields_list
-               | CMD_FILLNULL args_list fields_list
-               | CMD_ANOMALOUSVALUE args_list fields_list
-               | CMD_ANOMALYDETECTION args_list fields_list
-               | CMD_ARULES args_list fields_list
-               | CMD_ASSOCIATE args_list fields_list
-               | CMD_TRANSACTION args_list fields_list'''
-    p[0] = {"input":p[3],"output":[],"fields-effect":"none"}
-    checkArgs(p,p[2])
-    p[0]=commands_args_and_fields_output_update(p,p[2])
-
-def p_command_basic_fields_and_args(p):
-    '''command : CMD_ADDCOLTOTALS fields_list args_list
-               | CMD_ADDTOTALS fields_list args_list
-               | CMD_FILLNULL fields_list args_list
-               | CMD_ANOMALOUSVALUE fields_list args_list
-               | CMD_ANOMALYDETECTION fields_list args_list
-               | CMD_ARULES fields_list args_list
-               | CMD_ASSOCIATE fields_list args_list
-               | CMD_TRANSACTION fields_list args_list'''
-    p[0] = {"input":p[2],"output":[],"fields-effect":"none"}
-    checkArgs(p,p[3])
-    p[0]=commands_args_and_fields_output_update(p,p[3])
-
-def p_command_basic_args_and_fields_and_args(p):
-    '''command : CMD_ADDCOLTOTALS args_list fields_list args_list
-               | CMD_ADDTOTALS args_list fields_list args_list
-               | CMD_FILLNULL args_list fields_list args_list
-               | CMD_ANOMALOUSVALUE args_list fields_list args_list
-               | CMD_ANOMALYDETECTION args_list fields_list args_list
-               | CMD_ARULES args_list fields_list args_list
-               | CMD_ASSOCIATE args_list fields_list args_list
-               | CMD_TRANSACTION args_list fields_list args_list'''
-    p[0] = {"input":p[3],"output":[],"fields-effect":"none"}
-    args=p[2]
-    for arg in p[4]:
-        args[arg]=p[4][arg]
-    checkArgs(p,args)
-    p[0]=commands_args_and_fields_output_update(p,args)
+    '''command : CMD_ADDCOLTOTALS command_params_fields_or_args
+               | CMD_ADDTOTALS command_params_fields_or_args
+               | CMD_FILLNULL command_params_fields_or_args
+               | CMD_ANOMALOUSVALUE command_params_fields_or_args
+               | CMD_ANOMALYDETECTION command_params_fields_or_args
+               | CMD_ARULES command_params_fields_or_args
+               | CMD_ASSOCIATE command_params_fields_or_args
+               | CMD_TRANSACTION command_params_fields_or_args'''
+    p[0] = {"input":p[2]["fields"],"output":[],"fields-effect":"none"}
+    checkArgs(p,p[2]["args"])
+    p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
     
 # Performs the transformations necessary for the generic rules of command
 # containing arguments, a fields list or both or even none of all
@@ -694,6 +651,11 @@ def commands_args_and_fields_output_update(p,args):
     elif p[1] == "associate":
         out["output"] = cmd_conf[p[1]]["created_fields"]
         out["fields-effect"] = "replace"
+    elif p[1] == "bucketdir":
+        if "pathfield" in args:
+            out["input"].append(args["pathfield"])
+    elif p[1] == "table":
+        p[0] = {"input":p[2],"output":p[2],"fields-effect":"replace"}
     return out
 
 # WHERE
@@ -795,8 +757,8 @@ def p_command_appendpipe(p):
 def p_command_autoregress(p):
     '''command : CMD_AUTOREGRESS rfield_term NAME EQ NUMBER
                | CMD_AUTOREGRESS field_name NAME EQ NUMBER
-               | CMD_AUTOREGRESS rfield_term NAME EQ valuesinterval
-               | CMD_AUTOREGRESS field_name NAME EQ valuesinterval
+               | CMD_AUTOREGRESS rfield_term NAME EQ NAME
+               | CMD_AUTOREGRESS field_name NAME EQ NAME
                | CMD_AUTOREGRESS rfield_term
                | CMD_AUTOREGRESS field_name'''
     if len(p) == 6 :
@@ -843,6 +805,72 @@ def p_command_bin(p):
             p[0] = {"input":[p[2]],"output":[],"fields-effect":"none"}
         else:
             p[0] = {"input":[p[3]],"output":[],"fields-effect":"none"}
+
+# TOP
+def p_command_top(p):
+    '''command : CMD_TOP NUMBER command_params_by_and_fields_or_args
+               | CMD_TOP command_params_by_and_fields_or_args'''
+    data=p[len(p)-1]
+    checkArgs(p,data["args"])
+    p[0] = {"input":data["fields"]+data["by"],"output":[],"fields-effect":"none"}
+
+#--------------------
+# Generic args positioning
+#--------------------
+
+def p_command_params_by_and_fields_or_args(p):
+    '''command_params_by_and_fields_or_args : command_params_fields_or_args BY_CLAUSE fields_list args_list
+                          | command_params_fields_or_args BY_CLAUSE fields_list
+                          | BY_CLAUSE fields_list args_list
+                          | BY_CLAUSE fields_list
+                          | command_params_fields_or_args'''
+    data = {"args":{},"fields":[],"by":[]}
+    if len(p) == 5:
+        data["by"]=p[3]
+        data["fields"] = p[1]["fields"]
+        for k in p[1]["args"]:
+            data["args"][k]=p[1]["args"][k]
+        for k in p[4]:
+            data["args"][k]=p[4][k]
+    elif len(p) == 4:
+        if p[1] == "by":
+            data["by"]=p[2]
+            data["args"]=p[3]
+        else:
+            data["by"]=p[3]
+            data["fields"] = p[1]["fields"]
+            data["args"]=p[1]["args"]
+    elif len(p) == 3:
+        data["by"]=p[2]
+    elif len(p) == 2:
+        data["args"] = p[1]["args"]
+        data["fields"] = p[1]["fields"]
+    p[0] = data
+
+def p_command_params_fields_or_args(p):
+    '''command_params_fields_or_args : args_list fields_list args_list
+                               | args_list fields_list
+                               | fields_list args_list
+                               | args_list
+                               | fields_list'''
+    data = {"args":{},"fields":[]}
+    if len(p) == 4:
+        data["fields"] = p[2]
+        for k in p[1]:
+            data["args"][k]=p[1][k]
+        for k in p[3]:
+            data["args"][k]=p[3][k]
+    elif len(p) == 3:
+        if isinstance(p[1],dict):
+            data = {"args":p[1],"fields":p[2]}
+        else:
+            data = {"args":p[2],"fields":p[1]}
+    else:
+        if isinstance(p[1],dict):
+            data = {"args":p[1],"fields":[]}
+        else:
+            data = {"args":[],"fields":p[1]}
+    p[0] = data
 
 #---------------------------
 # Custom command function
@@ -994,11 +1022,6 @@ def p_values_list(p):
         p[0] = p[1] + [p[3]]
     else:
         p[0]=[p[1]]
-
-def p_values_interval(p):
-    'valuesinterval : NUMBER MINUS NUMBER'
-    p[0]="{}-{}".format(p[1],p[3])
-
 
 '''
 def p_empty(p):

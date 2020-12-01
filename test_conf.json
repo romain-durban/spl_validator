@@ -250,6 +250,59 @@
 			"search":"index=idx | eval rawlen=len(_raw) | autoregress rawlen p=1-4 | eval moving_average=(rawlen + rawlen_p1 + rawlen_p2 + rawlen_p3 +rawlen_p4 ) /5",
 			"exp_err":0,
 			"tags":["search","autoregress","valid","splunk_doc","eval"]
+		},
+		"splunk_bin_1": {
+			"search":"index=idx | bin _time span=5m | stats avg(thruput) by _time host",
+			"exp_err":0,
+			"tags":["search","bin","valid","splunk_doc","stats"]
+		},
+		"splunk_bin_2": {
+			"search":"index=idx | bin size bins=10 | stats count(_raw) by size",
+			"exp_err":0,
+			"tags":["search","bin","valid","splunk_doc","stats"]
+		},
+		"splunk_bin_3": {
+			"search":"index=idx | bin amount end=1000",
+			"exp_err":0,
+			"tags":["search","bin","valid","splunk_doc"]
+		},
+		"splunk_bin_4": {
+			"search":"index=idx | bin _time span=12h aligntime=@d+3h",
+			"exp_err":0,
+			"tags":["search","bin","valid","splunk_doc"]
+		},
+		"splunk_bin_5": {
+			"search":"index=idx | bin _time aligntime=1500567890",
+			"exp_err":0,
+			"tags":["search","bin","valid","splunk_doc"]
+		},
+		"splunk_bucketdir": {
+			"search":"index=idx | top source | bucketdir pathfield=source sizefield=count maxcount=10",
+			"exp_err":0,
+			"tags":["search","bucketdir","valid","splunk_doc","top"]
+		},
+
+
+
+
+
+
+
+		
+		"splunk_top_1": {
+			"search":"sourcetype=access_* | top limit=20 referer",
+			"exp_err":0,
+			"tags":["search","top","valid","splunk_doc","top"]
+		},
+		"splunk_top_2": {
+			"search":"sourcetype=access_* | top action by referer_domain",
+			"exp_err":0,
+			"tags":["search","top","valid","splunk_doc","top"]
+		},
+		"splunk_top_3": {
+			"search":"sourcetype=access_* status=200 action=purchase | top 1 productName by categoryId showperc=f countfield=total",
+			"exp_err":0,
+			"tags":["search","top","valid","splunk_doc","top"]
 		}
 	}
 }
