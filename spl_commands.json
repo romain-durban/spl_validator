@@ -19,6 +19,8 @@
     "bin": {"token_name":"CMD_BIN","args":["bins","minspan","span","start","end","aligntime"],"created_fields":[]},
     "bucket": {"token_name":"CMD_BIN","args":["bins","minspan","span","start","end","aligntime"],"created_fields":[]},
     "bucketdir": {"token_name":"CMD_BUCKETDIR","args":["pathfield","sizefield","maxcount","countfield","sep"],"created_fields":[]},
+    "cefout" : {"token_name":"CMD_CEFOUT","args":["routing"],"created_fields":[]},
+    "chart" : {"token_name":"CMD_CHART","args":["dedup_splitvals","cont","format","limit","sep","bins","span","end","start","aligntime","nullstr","otherstr","usenull","useother"],"created_fields":[]},
     "dedup" : {"token_name":"CMD_DEDUP","args":["keepevents","keepempty","consecutive"],"created_fields":[]},
     "eval" : {"token_name":"CMD_EVAL","args":[],"created_fields":[]},
     "expand" : {"token_name":"CMD_EXPAND","args":[],"created_fields":[]},

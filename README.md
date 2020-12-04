@@ -60,6 +60,9 @@ SPL commands specification is done in the `spl_commands.json` file
 | autoregress | all args | | case of numbers interval specifically handled for this rule, list of generated fields not handled |
 | bin | all args | | |
 | bucket | all args | | |
+| bucketdir | all args | | |
+| cefout | all args | | |
+| chart | all args | | Grammar is quite complex, might be some bugs |
 | dedup | all args | | |
 | eval | | | |
 | expand | | | |
@@ -75,6 +78,7 @@ SPL commands specification is done in the `spl_commands.json` file
 | sort | | | |
 | stats | first group of args | arg after group by | |
 | table | | | |
+| top | all args | | |
 | transaction | all args | list of fields for arg mvlist because that is a nightmare to handle | |
 | where | | | |
 
