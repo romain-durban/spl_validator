@@ -110,6 +110,8 @@ def t_NAME(t):
         t.type = reserved.get(t.value.lower(),"NAME")       # Check for reserved words, lowercase
     if t.value.isdigit():
         t.type = "NUMBER"
+    if re.match(r'^\d+\.\d+$', t.value):
+        t.type = "FLOAT"
     return t
 
 def t_FLOAT(t):
@@ -270,11 +272,13 @@ def p_filters_sub(p):
     p[0] = p[1]["output"]
 
 def p_filter_comp_1(p):
-    '''filter : NAME COMP_OP NUMBER'''
+    '''filter : NAME COMP_OP NUMBER
+              | NAME COMP_OP FLOAT'''
     p[0] = [p[1]]
 
 def p_filter_comp_(p):
-    '''filter : NUMBER COMP_OP NAME'''
+    '''filter : NUMBER COMP_OP NAME
+              | FLOAT COMP_OP NAME'''
     p[0] = [p[3]]
 
 def p_filter_in(p):
@@ -311,7 +315,7 @@ def p_filter_error(p):
 # Logical conditions
 def p_expression_logic(p):
     '''expression : expression_logic_exp'''
-    pass
+    p[0] = []
 
 def p_expression_logic_exp(p):
     '''expression_logic_exp : expression_logic_term OR_OP expression_logic_term
@@ -494,16 +498,16 @@ def p_command_eval_expr_assign(p):
     p[0] = p[1]
 
 def p_command_eval_expr_fun_value(p):
-    'eval_expr_fun_value : CMD_EVAL LPAREN expression RPAREN'
+    '''eval_expr_fun_value : CMD_EVAL LPAREN expression RPAREN'''
     p[0] = p[3]
 
 def p_command_eval_expr_fun(p):
     '''eval_expr_fun : eval_expr_fun_value AS_CLAUSE field_name
                      | eval_expr_fun_value'''
     if len(p) == 4:
-        p[0] = {"type":"command","input":p[1],"output":p[3]}
+        p[0] = {"type":"eval_expr_fun","input":p[1],"output":[p[3]]}
     else:
-        p[0] = {"type":"command","input":p[1],"output":[]}
+        p[0] = {"type":"eval_expr_fun","input":p[1],"output":[]}
 
 # FIELDS COMMAND
 def p_command_fields_keep(p):
@@ -820,87 +824,91 @@ def p_command_top(p):
     '''command : CMD_TOP NUMBER command_params_by_and_fields_or_args
                | CMD_TOP command_params_by_and_fields_or_args'''
     data=p[len(p)-1]
-    checkArgs(p,data["args"])
+    if "args" in data["args"]:
+            checkArgs(p,data["args"]["args"])
     p[0] = {"type":"command","input":data["fields"]+data["by"],"output":[],"fields-effect":"none"}
 
 # CHART
-def p_command_chart_noargs(p):
-    '''command : CMD_CHART agg_or_eval_list OVER_OP cmd_chart_split BY_CLAUSE cmd_chart_split
-               | CMD_CHART agg_or_eval_list OVER_OP cmd_chart_split BY_CLAUSE cmd_chart_split chart_where_clause
-               | CMD_CHART agg_or_eval_list BY_CLAUSE field_name field_name
-               | CMD_CHART agg_or_eval_list BY_CLAUSE cmd_chart_split cmd_chart_split
-               | CMD_CHART agg_or_eval_list BY_CLAUSE cmd_chart_split cmd_chart_split chart_where_clause
-               | CMD_CHART agg_or_eval_list BY_CLAUSE cmd_chart_split
-               | CMD_CHART agg_or_eval_list BY_CLAUSE cmd_chart_split chart_where_clause
-               | CMD_CHART agg_or_eval_list OVER_OP cmd_chart_split
-               | CMD_CHART agg_or_eval_list'''
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"replace"}
-    data=extractData(p)
-    args={}
-    if "agg_or_eval_list" in data:
-        p[0]["input"] = data["agg_or_eval_list"][0]["input"]
-        p[0]["output"] = data["agg_or_eval_list"][0]["output"]
-    if "chart_split" in data:
-        p[0]["input"] = p[0]["input"] + data["chart_split"][0]["fields"]
-        if "args" in data["chart_split"][0]["args"]:
-            extendDict(args,data["chart_split"][0]["args"]["args"])
+def p_command_chart(p):
+    '''command : CMD_CHART command_chart_1 command_chart_2'''
+    p[0] = {"type":"command","input":p[2]["input"]+p[3]["fields"],"output":p[2]["output"],"fields-effect":"replace"}
+    args=p[2]["args"]
+    extendDict(args,p[3]["args"])
+    if "modes" in p[3] and "chart_by" in p[3]["modes"]:
+        p[0]["output"] += p[3]["fields"]
     checkArgs(p,args)
 
-def p_command_chart_args(p):
-    '''command : CMD_CHART args_list agg_or_eval_list OVER_OP cmd_chart_split BY_CLAUSE cmd_chart_split
-               | CMD_CHART args_list agg_or_eval_list OVER_OP cmd_chart_split BY_CLAUSE cmd_chart_split chart_where_clause args_list
-               | CMD_CHART args_list agg_or_eval_list OVER_OP cmd_chart_split BY_CLAUSE cmd_chart_split chart_where_clause
-               | CMD_CHART args_list agg_or_eval_list OVER_OP cmd_chart_split
-               | CMD_CHART agg_or_eval_list OVER_OP cmd_chart_split BY_CLAUSE cmd_chart_split chart_where_clause args_list
-               | CMD_CHART args_list agg_or_eval_list BY_CLAUSE cmd_chart_split cmd_chart_split
-               | CMD_CHART args_list agg_or_eval_list BY_CLAUSE cmd_chart_split cmd_chart_split chart_where_clause
-               | CMD_CHART args_list agg_or_eval_list BY_CLAUSE cmd_chart_split cmd_chart_split chart_where_clause args_list
-               | CMD_CHART args_list agg_or_eval_list BY_CLAUSE cmd_chart_split chart_where_clause args_list
-               | CMD_CHART args_list agg_or_eval_list BY_CLAUSE cmd_chart_split
-               | CMD_CHART args_list agg_or_eval_list BY_CLAUSE cmd_chart_split chart_where_clause
-               | CMD_CHART args_list agg_or_eval_list args_list
-               | CMD_CHART agg_or_eval_list args_list
-               | CMD_CHART args_list agg_or_eval_list'''
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"replace"}
-    data=extractData(p)
-    args={}
-    if "agg_or_eval_list" in data:
-        p[0]["input"] = data["agg_or_eval_list"][0]["input"]
-        p[0]["output"] = data["agg_or_eval_list"][0]["output"]
-    if "chart_split" in data:
-        p[0]["input"] = p[0]["input"] + data["chart_split"][0]["fields"]
-        extendDict(args,data["chart_split"][0]["args"]["args"])
-    if "args_list" in data:
-        for obj in data["args_list"]:
-            extendDict(args,obj)
-    checkArgs(p,args)
+def p_command_chart_1(p):
+    '''command_chart_1 : args_list agg_or_eval_list
+                       | agg_or_eval_list'''
+    p[0] = {"type":"chart_1","input":p[len(p)-1]["input"],"output":p[len(p)-1]["output"],"args":{}}
+    if len(p) == 3:
+        extendDict(p[0]["args"],p[1]["args"])
 
-def p_command_chat_split(p):
-    '''cmd_chart_split : field_name
-                       | field_name args_list'''
-    p[0] = {"type":"chart_split","fields":[p[1]],"args":{}}
-    if len(p) > 2:
-        p[0]["args"]=p[2]
+def p_command_chart_2(p):
+    '''command_chart_2 : command_chart_by_1
+                       | command_chart_by_2
+                       | command_chart_over
+                       | command_chart_over command_chart_by_1
+                       | command_chart_by_1 args_term
+                       | command_chart_by_2 args_term
+                       | command_chart_over args_term
+                       | command_chart_over command_chart_by_1 args_term'''
+    p[0] = {"type":"chart_2","fields":[],"args":{},"modes":[]}
+    for pp in p:
+        if "type" in pp:
+            extendDict(p[0]["args"],pp["args"])
+            p[0]["fields"] += pp["fields"]
+            p[0]["modes"].append(pp["type"])
+        else:
+            extendDict(p[0]["args"],pp)
+
+def p_command_chart_by_2(p):
+    '''command_chart_by_2 : BY_CLAUSE field_name args_list field_name args_list chart_where_clause
+                          | BY_CLAUSE field_name args_list field_name args_list
+                          | BY_CLAUSE field_name field_name args_list chart_where_clause
+                          | BY_CLAUSE field_name field_name args_list
+                          | BY_CLAUSE field_name args_list field_name chart_where_clause
+                          | BY_CLAUSE field_name args_list field_name
+                          | BY_CLAUSE field_name field_name chart_where_clause
+                          | BY_CLAUSE field_name field_name'''
+    p[0] = {"type":"chart_by","fields":[],"args":{}}
+    for pp in p[2:]:
+        if "type" in pp:
+                if pp["type"] == "args_list":
+                    extendDict(p[0]["args"],pp["args"])
+        else:
+            p[0]["fields"].append(pp)
+
+
+def p_command_chart_by_1(p):
+    '''command_chart_by_1 : BY_CLAUSE field_name args_list chart_where_clause
+                          | BY_CLAUSE field_name args_list
+                          | BY_CLAUSE field_name chart_where_clause
+                          | BY_CLAUSE field_name'''
+    p[0] = {"type":"chart_by","fields":[p[2]],"args":{}}
+    if len(p) > 3:
+        if "type" in p[3] and p[3]["type"] == "args_list":
+            p[0]["args"]=p[3]["args"]
+
+def p_command_chart_over(p):
+    '''command_chart_over : OVER_OP field_name args_list
+                          | OVER_OP field_name'''
+    p[0] = {"type":"chart_over","fields":[p[2]],"args":{}}
+    if len(p) == 4:
+        p[0]["args"]=p[3]["args"]
+
 
 def p_command_chart_where_clause(p):
-    '''chart_where_clause : chart_agg_term IN_OP CMD_TOP NUMBER
-                          | chart_agg_term IN_OP BOTTOM_OP NUMBER
-                          | chart_agg_term NOTIN_OP CMD_TOP NUMBER
-                          | chart_agg_term NOTIN_OP BOTTOM_OP NUMBER
-                          | chart_agg_term COMP_OP NUMBER
-                          | chart_agg_term COMP_OP FLOAT'''
+    '''chart_where_clause : agg_term IN_OP CMD_TOP NUMBER
+                          | agg_term IN_OP BOTTOM_OP NUMBER
+                          | agg_term NOTIN_OP CMD_TOP NUMBER
+                          | agg_term NOTIN_OP BOTTOM_OP NUMBER
+                          | agg_term COMP_OP NUMBER
+                          | agg_term COMP_OP FLOAT'''
     p[0] = {"type":"chart_where_clause","fields":[p[1]],"options":[],"value":p[len(p)-1]}
     if len(p) > 4:
-        p[0]["options"].append(p[2]).append(p[3])
-
-def p_command_chart_agg_term(p):
-    '''chart_agg_term : NAME LPAREN field_name RPAREN
-                      | NAME'''
-    if len(p) > 2:
-        p[0] = "{}({})".format(p[1],p[3])
-    else:
-        p[0] = p[1]
-    
+        p[0]["options"].append(p[2]).append(p[3]) 
 
 #--------------------
 # Generic args positioning
@@ -923,7 +931,7 @@ def p_command_params_by_and_fields_or_args(p):
     elif len(p) == 4:
         if p[1] == "by":
             data["by"]=p[2]
-            data["args"]=p[3]
+            data["args"]=p[3]["args"]
         else:
             data["by"]=p[3]
             data["fields"] = p[1]["fields"]
@@ -957,7 +965,7 @@ def p_command_params_fields_or_args(p):
         if isinstance(p[1],dict):
             data = {"args":p[1]["args"],"fields":[]}
         else:
-            data = {"args":[],"fields":p[1]}
+            data = {"args":{},"fields":p[1]}
     p[0] = data
 
 #---------------------------
@@ -998,8 +1006,8 @@ def p_agg_terms_list(p):
         p[0] = p[1]
 
 def p_agg_term(p):
-    '''agg_term : NAME LPAREN field_name RPAREN AS_CLAUSE field_name
-                | NAME LPAREN field_name RPAREN
+    '''agg_term : NAME LPAREN agg_term_arg RPAREN AS_CLAUSE field_name
+                | NAME LPAREN agg_term_arg RPAREN
                 | NAME AS_CLAUSE field_name
                 | NAME'''
     if len(p) == 7:
@@ -1010,6 +1018,11 @@ def p_agg_term(p):
         p[0] = {"type":"agg_term","input":[p[1]],"output":[p[3]]}
     else:
         p[0] = {"type":"agg_term","input":[],"output":[p[1]]}
+
+def p_agg_term_arg(p):
+    '''agg_term_arg : eval_expr_fun_value
+                    | field_name'''
+    p[0]=p[1]
 
 def p_agg_or_eval_list(p):
     '''agg_or_eval_list : agg_terms_list

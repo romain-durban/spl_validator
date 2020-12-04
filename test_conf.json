@@ -281,14 +281,82 @@
 			"exp_err":0,
 			"tags":["search","bucketdir","valid","splunk_doc","top"]
 		},
+		"splunk_chart_1": {
+			"search":"index=idx | chart max(delay) OVER foo",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc"]
+		},
+		"splunk_chart_1": {
+			"search":"index=idx | chart max(delay) OVER foo",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc"]
+		},
+		"splunk_chart_2": {
+			"search":"index=idx | chart max(delay) OVER foo BY bar",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc"]
+		},
+		"splunk_chart_3": {
+			"search":"index=idx | chart eval(avg(size)/max(delay)) AS ratio BY host user",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc"]
+		},
+		"splunk_chart_4": {
+			"search":"index=idx | chart max(delay) BY size bins=10",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc"]
+		},
+		"splunk_chart_5": {
+			"search":"index=idx | chart avg(size) BY host",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc"]
+		},
+		"splunk_chart_6": {
+			"search":"index=idx | chart count BY date_mday span=3 date_hour span=12",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc"]
+		},
+		"splunk_chart_8": {
+			"search":"index=idx | chart avg(field) BY mvfield dedup_splitvals=true",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc"]
+		},
+		"splunk_chart_9": {
+			"search":"source=\"addtotalsData.csv\" | chart sum(sales) BY products quarter",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc"]
+		},
+		"splunk_chart_10": {
+			"search":"sourcetype=access_* | chart count(eval(method=\"GET\")) AS GET, count(eval(method=\"POST\")) AS POST by host",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc"]
+		},
+		"splunk_chart_11": {
+			"search":"sourcetype=access_* status=200 action=purchase | transaction clientip maxspan=10m | chart count BY duration span=log2",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc","transaction"]
+		},
+		"splunk_chart_12": {
+			"search":"sourcetype=access_* status=200 action=purchase | transaction clientip maxspan=30m | chart avg(eventcount) by duration span=log2",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc","transaction"]
+		},
+		"splunk_chart_13": {
+			"search":"sourcetype=access_* status=200 action=purchase | chart dc(clientip) OVER date_hour BY categoryId usenull=f",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc","transaction"]
+		},
+		"splunk_chart_14": {
+			"search":"source=all_month.csv place=*alaska* mag>=3.5 | chart count BY mag place useother=f | rename mag AS Magnitude",
+			"exp_err":0,
+			"tags":["search","chart","valid","splunk_doc","transaction"]
+		},
 
 
 
 
 
 
-
-		
 		"splunk_top_1": {
 			"search":"sourcetype=access_* | top limit=20 referer",
 			"exp_err":0,

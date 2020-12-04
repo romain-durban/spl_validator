@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='source=\"addtotalsData.csv\" | chart sum(sales) BY products quarter | addtotals'
+s='sourcetype=access_* status=200 action=purchase | transaction clientip maxspan=10m | chart count BY duration span=log2'
 print(s)
 
 spl_validator.analyze(s,verbose=True)
