@@ -21,6 +21,10 @@
     "bucketdir": {"token_name":"CMD_BUCKETDIR","args":["pathfield","sizefield","maxcount","countfield","sep"],"created_fields":[]},
     "cefout" : {"token_name":"CMD_CEFOUT","args":["routing"],"created_fields":[]},
     "chart" : {"token_name":"CMD_CHART","args":["dedup_splitvals","cont","format","limit","sep","bins","span","end","start","aligntime","nullstr","otherstr","usenull","useother"],"created_fields":[]},
+    "cluster" : {"token_name":"CMD_CLUSTER","args":["t","delim","showcount","countfield","labelfield","field","labelonly","match"],"created_fields":[]},
+    "cofilter" : {"token_name":"CMD_COFILTER","args":[],"created_fields":[]},
+    "collect" : {"token_name":"CMD_COLLECT","args":["index","addtime","file","spool","marker","output_format","testmode","run_in_preview","host","source","sourcetype"],"created_fields":[]},
+    "concurrency" : {"token_name":"CMD_CONCURRENCY","args":["duration","start","output"],"created_fields":[]},
     "dedup" : {"token_name":"CMD_DEDUP","args":["keepevents","keepempty","consecutive"],"created_fields":[]},
     "eval" : {"token_name":"CMD_EVAL","args":[],"created_fields":[]},
     "expand" : {"token_name":"CMD_EXPAND","args":[],"created_fields":[]},
@@ -37,6 +41,6 @@
     "stats" : {"token_name":"CMD_STATS","args":["partitions","allnum","delim"],"created_fields":[]},
     "table" : {"token_name":"CMD_TABLE","args":[],"created_fields":[]},
     "top" : {"token_name":"CMD_TOP","args":["countfield","limit","otherstr","percentfield","showcount","showperc","useother"],"created_fields":[]},
-    "transaction" : {"token_name":"CMD_TRANSACTION","args":["name","connected","endswith","keeporphans","maxspan","maxpause","maxevents","unifyends","keepevicted","maxopenevents","maxopentxn","delim","mvlist","mvraw","nullstr"],"created_fields":[]}, 
+    "transaction" : {"token_name":"CMD_TRANSACTION","args":["name","connected","endswith","keeporphans","maxspan","maxpause","maxevents","startswith","unifyends","keepevicted","maxopenevents","maxopentxn","delim","mvlist","mvraw","nullstr"],"created_fields":[]}, 
     "where" : {"token_name":"CMD_WHERE","args":[],"created_fields":[]}
 }

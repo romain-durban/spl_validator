@@ -351,6 +351,54 @@
 			"exp_err":0,
 			"tags":["search","chart","valid","splunk_doc","transaction"]
 		},
+		"splunk_cluster_1": {
+			"search":"index=_internal source=*splunkd.log* log_level!=info | cluster showcount=t | table cluster_count _raw | sort -cluster_count",
+			"exp_err":0,
+			"tags":["search","cluster","valid","splunk_doc","table","sort"]
+		},
+		"splunk_cluster_2": {
+			"search":"index=idx | cluster t=0.9 showcount=t | sort - cluster_count | head 20",
+			"exp_err":0,
+			"tags":["search","cluster","valid","splunk_doc","head","sort"]
+		},
+		"splunk_cluster_3": {
+			"search":"index=idx | cluster labelonly=t showcount=t | sort - cluster_count, cluster_label, _time | dedup 5 cluster_label",
+			"exp_err":0,
+			"tags":["search","cluster","valid","splunk_doc","dedup","sort"]
+		},
+		"splunk_collect_1": {
+			"search":"eventtypetag=\"download\" | collect index=downloadcount",
+			"exp_err":0,
+			"tags":["search","collect","valid","splunk_doc"]
+		},
+		"splunk_collect_2": {
+			"search":"index=mysummary | eval country_source=if(REMOTE_IP_country_code=\"US\",\"domestic\",\"foreign\") | bin _time span=1h | stats count by _time,vpn_action,country_source | addinfo | collect index=mysummary marker=\"summary_type=vpn, summary_span=3600, summary_method=bin, search_name=\\\"vpn starts and stops\\\"\"",
+			"exp_err":0,
+			"tags":["search","collect","valid","splunk_doc","eval","bin","stats","addinfo"]
+		},
+		"splunk_concurrency_1": {
+			"search":"index=_internal sourcetype=splunkd_ui_access | eval spent_in_seconds = spent / 1000 | concurrency duration=spent_in_seconds",
+			"exp_err":0,
+			"tags":["search","concurrency","valid","splunk_doc","eval"]
+		},
+		"splunk_concurrency_2": {
+			"search":"index=idx | concurrency duration=total_time output=foo",
+			"exp_err":0,
+			"tags":["search","concurrency","valid","splunk_doc"]
+		},
+		"splunk_concurrency_3": {
+			"search":"index=idx | concurrency duration=length start=et",
+			"exp_err":0,
+			"tags":["search","concurrency","valid","splunk_doc"]
+		},
+		"splunk_concurrency_4": {
+			"search":"sourcetype=access_* | transaction JSESSIONID clientip startswith=\"view\" endswith=\"purchase\" | concurrency duration=duration | eval duration=tostring(duration,\"duration\")",
+			"exp_err":0,
+			"tags":["search","concurrency","valid","splunk_doc","transaction","eval"]
+		},
+
+
+
 
 
 

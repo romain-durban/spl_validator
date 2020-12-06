@@ -47,7 +47,7 @@ reserved = {
 }
 
 tokens = [
-    'EQ','NEQ','PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'LPAREN','RPAREN','LBRACK','RBRACK','COMMA',
+    'EQ','NEQ','PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'MOD', 'LPAREN','RPAREN','LBRACK','RBRACK','COMMA',
     'NUMBER', 'FLOAT', 'QUOTE', 'COMP_OP', 'PIPE', 
     'MACRO',
     'NAME','STRING','PATTERN','TIMESPECIFIER','DATE'
@@ -63,6 +63,7 @@ t_PLUS    = r'\+'
 t_MINUS   = r'-'
 t_TIMES   = r'\*'
 t_DIVIDE  = r'/'
+t_MOD = r'%'
 t_LPAREN  = r'\('
 t_RPAREN  = r'\)'
 t_LBRACK  = r'\['
@@ -97,8 +98,8 @@ def t_PATTERN(t):
     return t
 
 def t_STRING(t):
-    r'"[^"]+"'
-    t.value=t.value.strip('"')
+    r'"([^"]*\\"[^"]*\\"[^"]*|[^"]+)"'
+    t.value=t.value[1:-1]
     return t
 
 def t_NAME(t):
@@ -150,6 +151,7 @@ precedence = (
 def p_mainsearch(p):
     '''mainsearch : search_exp'''
     p[0] = p[1]
+    p[0]["type"] = "mainsearch"
 
 def p_search_exp(p):
     '''search_exp : filters_invok
@@ -157,9 +159,10 @@ def p_search_exp(p):
               | PIPE commands'''
     global scope_level, params, data
     flt,cmd=None,None
-    fields = {"input":[],"output":[],"fields-effect":[]}
+    fields = {"type":"search_exp","input":[],"output":[],"fields-effect":[],"content":[]}
     if len(p) == 4:
         flt=p[1]
+        fields["content"] += p[1]["content"]
         cmd=p[3]
         fields["fields-effect"]=p[3]["fields-effect"]
     elif len(p) == 3:
@@ -167,8 +170,9 @@ def p_search_exp(p):
         fields["fields-effect"]=p[2]["fields-effect"]
     elif len(p) == 2:
         flt=p[1]
+        fields["content"] += p[1]["content"]
     if not flt is None:
-        for f in flt:
+        for f in flt["input"]:
             if not f in fields["input"] and f is not None:
                 fields["input"].append(f)
     if not cmd is None:
@@ -187,7 +191,7 @@ def p_search_exp(p):
 def p_subsearch(p):
     '''subsearch : LBRACK new_scope search_exp RBRACK'''
     global scope_level
-    p[0] = p[3]
+    p[0] = {"type":"subsearch","input":p[3]["input"],"output":p[3]["output"]}
     scope_level = scope_level -1
 
 def p_new_scope(p):
@@ -197,7 +201,7 @@ def p_new_scope(p):
 
 def p_subpipeline(p):
     'subpipeline : LBRACK commands RBRACK'
-    p[0] = p[2]
+    p[0] = {"type":"subpipeline","input":p[2]["input"],"output":p[2]["output"]}
 
 #---------------------------
 # FILTERS
@@ -206,13 +210,12 @@ def p_filters_invok(p):
     '''filters_invok : CMD_SEARCH filters
                      | filters'''
     global scope_level
+    p[0] = {"type":"filters_invok","input":p[len(p)-1]["input"],"output":p[len(p)-1]["output"],"content":p[len(p)-1]["content"],"op":p[len(p)-1]["op"]}
     if len(p) == 3:
-        p[0] = p[2]
         if scope_level == 0:
             #Unecessary CMD_SEARCH in mainsearch context
             report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected SEARCH in the beginning of the main search",None)
     else:
-        p[0] = p[1]
         if scope_level > 0:
             #Missing CMD_SEARCH in subsearch context
             report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Missing SEARCH in the beginning of the subsearch",None)
@@ -220,87 +223,91 @@ def p_filters_invok(p):
 def p_filters(p):
     '''filters : filter filters
                | filter'''
+    p[0] = {"type":"filters","input":p[1]["input"],"output":p[1]["output"],"content":[p[1]["value"]],"op":p[1]["op"]}
     if len(p) == 3:
-        p[0] = p[1] + p[2]
-    else:
-        p[0] = p[1]
+        p[0]["input"] += p[2]["input"]
+        p[0]["output"] += p[2]["output"]
+        p[0]["content"] += p[2]["content"]
+        p[0]["op"] += p[2]["op"]
 
 # Logical conditions
 def p_filters_logic(p):
     '''filters : filters_logic_exp'''
-    p[0] = p[1]
+    p[0] = {"type":"filters_logic","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
 
 def p_filters_logic_exp(p):
     '''filters_logic_exp : filters_logic_exp OR_OP filters_logic_term
                          | filters_logic_term'''
     if len(p) == 4:
-        p[0] = p[1] + p[3]
+        p[0] = {"type":"filters_logic_exp","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["output"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
     else:
-        p[0] = p[1]
+        p[0] = {"type":"filters_logic_exp","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
 
 def p_filters_logic_term(p):
     '''filters_logic_term : filters_logic_term AND_OP filters_logic_factor
                           | filters_logic_term filters_logic_factor
                           | filters_logic_factor'''
     if len(p) == 4:
-        p[0] = p[1] + p[3]
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["output"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
     elif len(p) == 3:
-        p[0] = p[1] + p[2]
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"],"content":p[1]["content"]+p[2]["output"],"op":p[1]["op"] + ["and"] + p[2]["op"]}
     else:
-        p[0] = p[1]
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
 
 def p_filters_logic_factor(p):
     '''filters_logic_factor : filter
                             | NOT_OP filters_logic_factor
                             | LPAREN filters_logic_exp RPAREN'''
     if len(p) > 2:
-        p[0] = p[2]
+        p[0] = {"type":"filters_logic_term","input":p[2]["input"],"output":p[2]["output"],"content":p[2]["content"],"op":p[2]["op"]}
+        if p[1] == "not":
+            p[0]["op"] = [p[1]] + p[0]["op"]
     else:
-        p[0] = p[1]
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"],"output":p[1]["output"],"content":[p[1]["value"]],"op":[]}
 # ---
 
 def p_filter_eq(p):
     'filter : NAME EQ value'
-    p[0] = [p[1]]
+    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3]["value"],"op":[p[2]]}
 
 def p_filter_neq(p):
     'filter : NAME NEQ value'
-    p[0] = [p[1]]
+    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3]["value"],"op":[p[2]]}
 
 def p_filters_sub(p):
     'filter : subsearch'
-    p[0] = p[1]["output"]
+    p[0] = {"type":"filter_subsearch","input":p[1]["output"],"output":[],"value":"","op":[]}
 
 def p_filter_comp_1(p):
     '''filter : NAME COMP_OP NUMBER
               | NAME COMP_OP FLOAT'''
-    p[0] = [p[1]]
+    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3],"op":[p[2]]}
 
 def p_filter_comp_(p):
     '''filter : NUMBER COMP_OP NAME
               | FLOAT COMP_OP NAME'''
-    p[0] = [p[3]]
+    p[0] = {"type":"filter","input":[p[3]],"output":[],"value":p[1],"op":[p[2]]}
 
 def p_filter_in(p):
     '''filter : NAME IN_OP LPAREN values_list RPAREN'''
-    p[0] = [p[1]]
+    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[4]["values"],"op":[p[2]]}
 
 def p_filter_phrases(p):
     '''filter : CASE_OP LPAREN value RPAREN
               | TERM_OP LPAREN value RPAREN'''
-    p[0] = []
+    p[0] = {"type":"filter_phrase","input":[],"output":[],"value":p[3],"op":[p[1]]}
 
 def p_filter_any(p):
     'filter : NAME EQ TIMES'
-    p[0] = [p[1]]
+    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3],"op":[p[2]]}
 
 def p_filter_notany(p):
     'filter : NAME NEQ TIMES'
-    p[0] = [p[1]]
+    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3],"op":[p[2]]}
 
 def p_filter_raw(p):
     'filter : value'
-    p[0] = [None]
+    p[0] = {"type":"filter","input":[],"output":[],"value":p[1]["value"],"op":[]}
 
 # ERROR HANDLING
 def p_filter_error(p):
@@ -315,28 +322,61 @@ def p_filter_error(p):
 # Logical conditions
 def p_expression_logic(p):
     '''expression : expression_logic_exp'''
-    p[0] = []
+    s=""
+    for pp in p[1:]:
+        if isinstance(pp,dict) and "content" in pp:
+            s += pp["content"]
+        else:
+            s += pp
+    p[0] = {"type":"expression","content":s,"input":[],"output":[]}
 
 def p_expression_logic_exp(p):
     '''expression_logic_exp : expression_logic_term OR_OP expression_logic_term
                             | expression_logic_term'''
-    pass
+    s=""
+    for pp in p[1:]:
+        if isinstance(pp,dict) and "content" in pp:
+            s += pp["content"]
+        else:
+            s += pp
+    p[0] = {"type":"expression_logic_exp","content":s,"input":[],"output":[]}
 
 def p_expression_logic_term(p):
     '''expression_logic_term : expression_logic_factor AND_OP expression_logic_term
                              | expression_logic_factor'''
-    pass
+    s=""
+    for pp in p[1:]:
+        if isinstance(pp,dict) and "content" in pp:
+            s += pp["content"]
+        else:
+            s += pp
+    p[0] = {"type":"expression_logic_term","content":s,"input":[],"output":[]}
 
 def p_expression_logic_factor(p):
     '''expression_logic_factor : expression_value
                                | NOT_OP expression_logic_factor
                                | LPAREN expression_logic_exp RPAREN'''
-    pass
+    s=""
+    for pp in p[1:]:
+        if isinstance(pp,dict) and "content" in pp:
+            s += pp["content"]
+        else:
+            s += pp
+    p[0] = {"type":"expression_logic_factor","content":s,"input":[],"output":[]}
 
 def p_expression_value(p):
     '''expression_value : expr_fun LPAREN expression_fun_args RPAREN
                         | value'''
-    pass
+    s=""
+    for pp in p[1:]:
+        if isinstance(pp,dict):
+            if "content" in pp:
+                s += pp["content"]
+            elif "value" in pp:
+                s += pp["value"]
+        else:
+            s += pp
+    p[0] = {"type":"expression_value","content":s,"input":[],"output":[]}
 
 def p_expression_binop(p):
     '''expression_value : expression_value PLUS expression_value
@@ -345,19 +385,32 @@ def p_expression_binop(p):
                         | expression_value DIVIDE expression_value
                         | expression_value EQ expression_value
                         | expression_value COMP_OP expression_value
+                        | expression_value MOD expression_value
                         | LPAREN expression_value RPAREN'''
-    pass
+    s=""
+    for pp in p[1:]:
+        if isinstance(pp,dict) and "content" in pp:
+            s += pp["content"]
+        else:
+            s += pp
+    p[0] = {"type":"expression_value","content":s,"input":[],"output":[]}
 
 # ---
 
 def p_expression_fun(p):
     'expr_fun : NAME'
-    p[0] = p[1]
+    p[0] = {"type":"expression_value","content":p[1],"input":[],"output":[]}
 
 def p_expression_fun_args(p):
     '''expression_fun_args : expression COMMA expression_fun_args
                            | expression'''
-    pass
+    s=""
+    for pp in p[1:]:
+        if isinstance(pp,dict) and "content" in pp:
+            s += pp["content"]
+        else:
+            s += pp
+    p[0] = {"type":"expression_fun_args","content":s,"input":[],"output":[]}
 
 #---------------------------
 # Commands
@@ -366,7 +419,7 @@ def p_commands(p):
     '''commands : commands PIPE command
                 | command'''
     if len(p) == 4:
-        p[0] = {"input":p[1]["input"]+p[3]["input"],"output":[],"fields-effect":p[1]["fields-effect"]+[p[3]["fields-effect"]]}
+        p[0] = {"type":"command","input":p[1]["input"]+p[3]["input"],"output":[],"fields-effect":p[1]["fields-effect"]+[p[3]["fields-effect"]]}
         if p[3]["fields-effect"] == "replace":
             p[0]["output"] = p[3]["output"]
         elif p[3]["fields-effect"] == "remove":
@@ -384,7 +437,8 @@ def p_commands(p):
             p[0]["output"] = p[1]["output"]+p[3]["output"]
     else:
         p[0]=p[1]
-        p[0]["fields-effect"]=[p[0]["fields-effect"]]
+        if not p[1] is None:
+            p[0]["fields-effect"]=[p[1]["fields-effect"]]
 
 # ERROR HANDLING
 def p_commands_error(p):
@@ -416,6 +470,10 @@ def p_commands_names(p):
                       | CMD_BUCKETDIR
                       | CMD_CEFOUT
                       | CMD_CHART
+                      | CMD_CLUSTER
+                      | CMD_COFILTER
+                      | CMD_COLLECT
+                      | CMD_CONCURRENCY
                       | CMD_DEDUP
                       | CMD_EVAL
                       | CMD_EXPAND
@@ -433,14 +491,31 @@ def p_commands_names(p):
                       | CMD_TABLE
                       | CMD_TOP
                       | CMD_TRANSACTION
-                      | CMD_WHERE 
+                      | CMD_WHERE
                       '''
+    p[0] = p[1]
+
+def p_op_names(p):
+    '''op_names : AS_CLAUSE
+                | BY_CLAUSE
+                | SORTBY_CLAUSE
+                | OR_OP
+                | AND_OP
+                | NOT_OP
+                | OUTPUT_OP
+                | OUTPUT_NEW_OP
+                | IN_OP
+                | NOTIN_OP
+                | CASE_OP
+                | TERM_OP
+                | OVER_OP
+                | BOTTOM_OP'''
     p[0] = p[1]
 
 # SEARCH COMMAND
 def p_command_search(p):
     'command : CMD_SEARCH filters'
-    p[0] = {"input":p[2],"output":[],"fields-effect":"none"}
+    p[0] = {"type":"command","input":p[2]["input"],"output":[],"fields-effect":"none","content":p[2]["content"],"op":p[2]["op"]}
 
 # STATS
 def p_command_stats(p):
@@ -452,9 +527,9 @@ def p_command_stats(p):
     fields={"type":"command","input":[],"output":[],"fields-effect":"replace"}
     byclause,aggclause = [], []
     if len(p) == 6:
-        byclause = p[5]
+        byclause = p[5]["input"]
     elif len(p) == 5:
-        byclause = p[4]
+        byclause = p[4]["input"]
     for f in byclause:
         if f not in fields["input"] and f is not None:
             fields["input"].append(f)
@@ -482,78 +557,73 @@ def p_command_stats(p):
 def p_command_eval(p):
     'command : CMD_EVAL eval_exprs'
     global params
-    p[0] = {"input":[],"output":p[2],"fields-effect":"extend"}
+    p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"extend","content":p[2]["content"]}
     logger.info("Parsed a EVAL: {}".format(p[0]))
 
 def p_command_eval_exprs(p):
     '''eval_exprs : eval_exprs COMMA eval_expr_assign
                   | eval_expr_assign'''
     if len(p) == 4:
-        p[0] = [p[1]] + p[3]
+        #p[0] = [p[1]] + p[3]
+        p[0] = {"type":"eval_exprs","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["input"],"content":p[1]["input"]+p[3]["content"]}
     else:
-        p[0] = [p[1]]
+        #p[0] = [p[1]]
+        p[0] = {"type":"eval_exprs","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"]}
 
 def p_command_eval_expr_assign(p):
     'eval_expr_assign : field_name EQ expression'
-    p[0] = p[1]
+    p[0] = {"type":"eval_expr_assign","input":[p[1]["field"]]+p[3]["input"],"output":p[3]["output"],"content":[p[3]["content"]]}
 
 def p_command_eval_expr_fun_value(p):
     '''eval_expr_fun_value : CMD_EVAL LPAREN expression RPAREN'''
-    p[0] = p[3]
+    p[0] = {"type":"eval_expr_fun_value","input":p[3]["input"],"output":p[3]["output"],"content":p[3]["content"]}
 
 def p_command_eval_expr_fun(p):
     '''eval_expr_fun : eval_expr_fun_value AS_CLAUSE field_name
                      | eval_expr_fun_value'''
     if len(p) == 4:
-        p[0] = {"type":"eval_expr_fun","input":p[1],"output":[p[3]]}
+        p[0] = {"type":"eval_expr_fun","input":p[1]["input"],"output":[p[3]["field"]]+p[1]["output"],"content":p[1]["content"]}
     else:
-        p[0] = {"type":"eval_expr_fun","input":p[1],"output":[]}
+        p[0] = {"type":"eval_expr_fun","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"]}
 
 # FIELDS COMMAND
 def p_command_fields_keep(p):
     '''command : CMD_FIELDS PLUS fields_list
                | CMD_FIELDS fields_list'''
-    if len(p) == 4:
-        p[0] = {"type":"command","input":p[3],"output":p[3],"fields-effect":"replace"}
-    else:
-        p[0] = {"type":"command","input":p[2],"output":p[2],"fields-effect":"replace"}
+    p[0] = {"type":"command","input":p[len(p)-1]["input"],"output":p[len(p)-1]["input"],"fields-effect":"replace"}
 
 def p_command_fields_remove(p):
     '''command : CMD_FIELDS MINUS fields_list'''
-    p[0] = {"type":"command","input":p[3],"output":p[3],"fields-effect":"remove"}
+    p[0] = {"type":"command","input":p[3]["input"],"output":p[3]["input"],"fields-effect":"remove"}
 
 # RENAME
 def p_command_rename(p):
     'command : CMD_RENAME rfields_list'
-    p[0] = p[2]
-    p[0]["fields-effect"] = "rename"
-    p[0]["type"] = "command"
+    p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"rename"}
 
 # SORT
 def p_command_sort(p):
     '''command : CMD_SORT NUMBER sort_clause
                | CMD_SORT sort_clause'''
     if len(p) == 4:
-        p[0] = {"type":"command","input":p[3],"output":p[3],"fields-effect":"none"}
+        p[0] = {"type":"command","input":p[3]["input"],"output":p[3]["output"],"fields-effect":"none"}
     else:
-        p[0] = {"type":"command","input":p[2],"output":p[2],"fields-effect":"none"}
+        p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"none"}
 
 def p_command_sort_clause(p):
-    '''sort_clause : sort_term COMMA sort_clause
+    '''sort_clause : sort_clause COMMA sort_term
                    | sort_term'''
-    if len(p) == 3:
-        p[0] = p[1] + p[2]
+    p[0] = {"type":"sort_clause","input":[],"output":[],"fields-effect":"none"}
+    if len(p) == 4:
+        p[0]["input"] = p[1]["input"] + [p[3]["field"]]
     else:
-        p[0] = p[1]
+        p[0]["input"] = [p[1]["field"]]
 
 def p_command_sort_term(p):
     '''sort_term : PLUS field_name
                  | MINUS field_name
                  | field_name'''
-    if len(p) == 3:
-        p[0] = [p[2]]
-    else:
-        p[0] = [p[1]]
+    p[0] = {"type":"sort_term","field":p[len(p)-1]["field"],"fields-effect":"none"}
 
 # DEDUP
 def p_command_dedup_args(p):
@@ -562,18 +632,13 @@ def p_command_dedup_args(p):
                | CMD_DEDUP NUMBER fields_list args_list
                | CMD_DEDUP fields_list args_list'''
     args=None
-    if len(p) == 7:
-        p[0] = {"type":"command","input":p[3]+p[6],"output":[],"fields-effect":"none"}
-        args=p[4]["args"]
-    elif len(p) == 6:
-        p[0] = {"type":"command","input":p[2]+p[5],"output":[],"fields-effect":"none"}
-        args=p[3]["args"]
-    elif len(p) == 5:
-        p[0] = {"type":"command","input":p[3],"output":[],"fields-effect":"none"}
-        args=p[4]["args"]
-    else:
-        p[0] = {"type":"command","input":p[2],"output":[],"fields-effect":"none"}
-        args=p[2]["args"]
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+    for pp in p[1:]:
+        if "type" in pp:
+            if pp["type"] in ["fields_list","sort_clause"]:
+                p[0]["input"] += pp["input"]
+            elif pp["type"] == "args_list":
+                extendDict(args,pp["args"])
     checkArgs(p,args)
 
 def p_command_dedup_noargs(p):
@@ -581,14 +646,11 @@ def p_command_dedup_noargs(p):
                | CMD_DEDUP fields_list SORTBY_CLAUSE sort_clause
                | CMD_DEDUP NUMBER fields_list
                | CMD_DEDUP fields_list'''
-    if len(p) == 6:
-        p[0] = {"type":"command","input":p[3]+p[5],"output":[],"fields-effect":"none"}
-    elif len(p) == 5:
-        p[0] = {"type":"command","input":p[2]+p[4],"output":[],"fields-effect":"none"}
-    elif len(p) == 4:
-        p[0] = {"type":"command","input":p[3],"output":[],"fields-effect":"none"}
-    else:
-        p[0] = {"type":"command","input":p[2],"output":[],"fields-effect":"none"}
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+    for pp in p[1:]:
+        if "type" in pp:
+            if pp["type"] in ["fields_list","sort_clause"]:
+                p[0]["input"] += pp["input"]
 
 
 # BASIC NO FIELD COMMAND
@@ -606,38 +668,41 @@ def p_command_basic_no_field(p):
                | CMD_ASSOCIATE
                | CMD_TRANSACTION'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
-    p[0]=commands_args_and_fields_output_update(p,[])
+    p[0] = commands_args_and_fields_output_update(p,[])
 
 # BASIC SINGLE FIELD COMMAND
 def p_command_basic_single_field(p):
     '''command : CMD_EXPAND field_name
                | CMD_FLATTEN field_name'''
-    p[0] = {"type":"command","input":[p[2]],"output":[],"fields-effect":"none"}
+    p[0] = {"type":"command","input":[p[2]["field"]],"output":[],"fields-effect":"none"}
 
 # BASIC SINGLE ARG COMMAND
 def p_command_basic_single_arg(p):
     '''command : CMD_ANALYSEFIELDS args_term
                | CMD_APPENDPIPE args_term
                | CMD_CEFOUT args_term'''
-    checkArgs(p,p[2])
+    checkArgs(p,p[2]["args"])
     if p[1] in ["af","analyzefields"]:
-        p[0] = {"type":"command","input":p[2].values(),"output":cmd_conf[p[1]]["created_fields"],"fields-effect":"replace"}
+        p[0] = {"type":"command","input":p[2]["args"].values(),"output":cmd_conf[p[1]]["created_fields"],"fields-effect":"replace"}
     else: 
         p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
 
 # BASIC ONLY ARGS COMMAND
 def p_command_basic_only_args(p):
     '''command : CMD_ABSTRACT args_list
-               | CMD_BUCKETDIR args_list'''
+               | CMD_BUCKETDIR args_list
+               | CMD_CLUSTER args_list
+               | CMD_COLLECT args_list
+               | CMD_CONCURRENCY args_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     checkArgs(p,p[2]["args"])
-    p[0]=commands_args_and_fields_output_update(p,p[2])
+    p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
 
 # BASIC ONLY FIELDS
 def p_command_basic_only_fields(p):
     '''command : CMD_TABLE fields_list'''
-    p[0] = {"type":"command","input":p[2],"output":[],"fields-effect":"none"}
-    p[0]=commands_args_and_fields_output_update(p,[])
+    p[0] = {"type":"command","input":p[2]["input"],"output":[],"fields-effect":"none"}
+    p[0] = commands_args_and_fields_output_update(p,[])
 
 # BASIC FIELDS AND ARGS
 def p_command_basic_args_and_fields(p):
@@ -651,7 +716,7 @@ def p_command_basic_args_and_fields(p):
                | CMD_TRANSACTION command_params_fields_or_args'''
     p[0] = {"type":"command","input":p[2]["fields"],"output":[],"fields-effect":"none"}
     checkArgs(p,p[2]["args"])
-    p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
+    p[0] = commands_args_and_fields_output_update(p,p[2]["args"])
     
 # Performs the transformations necessary for the generic rules of command
 # containing arguments, a fields list or both or even none of all
@@ -675,12 +740,15 @@ def commands_args_and_fields_output_update(p,args):
             out["input"].append(args["pathfield"])
     elif p[1] == "table":
         p[0] = {"type":"command","input":p[2],"output":p[2],"fields-effect":"replace"}
+    elif p[1] == "cluster":
+        if "field" in args:
+                p[0]["input"].append(args["field"])
     return out
 
 # WHERE
 def p_command_where(p):
     'command : CMD_WHERE expression'
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+    p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"none","content":p[2]["content"]}
 
 # LOOKUP
 def p_command_lookup(p):
@@ -689,11 +757,11 @@ def p_command_lookup(p):
                | CMD_LOOKUP NAME any_fields_list
                | CMD_LOOKUP NAME'''
     if len(p) > 3:
-        p[0] = {"type":"command","input":p[3],"output":[],"fields-effect":"extend"}
+        p[0] = {"type":"command","input":p[3]["input"]+p[3]["output"],"output":[],"fields-effect":"extend","file":p[2]}
     else:
-        p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+        p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","file":p[2]}
     if len(p) > 4:
-        p[0]["output"] = p[5]
+        p[0]["output"] = p[5]["input"]
 
 def p_command_lookup_args(p):
     '''command : CMD_LOOKUP args_list NAME any_fields_list OUTPUT_OP any_fields_list
@@ -701,11 +769,11 @@ def p_command_lookup_args(p):
                | CMD_LOOKUP args_list NAME any_fields_list
                | CMD_LOOKUP args_list NAME'''
     if len(p) > 4:
-        p[0] = {"type":"command","input":p[3],"output":[],"fields-effect":"extend"}
+        p[0] = {"type":"command","input":p[4]["input"]+p[4]["output"],"output":[],"fields-effect":"extend","file":p[3]}
     else:
-        p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
-    if len(p) > 4:
-        p[0]["output"] = p[5]
+        p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","file":p[3]}
+    if len(p) > 6:
+        p[0]["output"] = p[5]["input"]
     checkArgs(p,p[2]["args"])
 
 # INPUTLOOKUP
@@ -715,16 +783,19 @@ def p_command_inputlookup(p):
                | CMD_INPUTLOOKUP args_list NAME
                | CMD_INPUTLOOKUP NAME'''
 
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","file":""}
     if len(p) == 6 or len(p) == 4:
         checkArgs(p,p[2]["args"])
+        p[0]["file"] = p[3]
+    else:
+        p[0]["file"] = p[2]
 
 # OUTPUTLOOKUP
 def p_command_outputlookup(p):
     '''command : CMD_OUTPUTLOOKUP args_list NAME
                | CMD_OUTPUTLOOKUP NAME'''
 
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","file":p[len(p)-1]}
     if len(p) == 4:
         checkArgs(p,p[2]["args"])
 # ACCUM
@@ -732,9 +803,9 @@ def p_command_accum(p):
     '''command : CMD_ACCUM field_name AS_CLAUSE field_name
                | CMD_ACCUM field_name'''
     if len(p) == 5:
-        p[0] = {"type":"command","input":[p[2]],"output":[p[4]],"fields-effect":"extend"}
+        p[0] = {"type":"command","input":[p[2]["field"]],"output":[p[4]["field"]],"fields-effect":"extend"}
     else:
-        p[0] = {"type":"command","input":[p[2]],"output":[],"fields-effect":"none"}
+        p[0] = {"type":"command","input":[p[2]["field"]],"output":[],"fields-effect":"none"}
 
 # ANOMALIES
 def p_command_anomalies(p):
@@ -782,10 +853,10 @@ def p_command_autoregress(p):
                | CMD_AUTOREGRESS field_name'''
     if len(p) == 6 :
         checkArgs(p,p[3])
-    if isinstance(p[2],dict):
+    if p[2]["type"] == "rfield_term":
         p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"extend"}
-    else:
-        p[0] = {"type":"command","input":[p[2]],"output":[],"fields-effect":"none"}
+    elif p[2]["type"] == "field_name":
+        p[0] = {"type":"command","input":[p[2]["field"]],"output":[],"fields-effect":"none"}
 
 # BIN / BUCKET
 def p_command_bin(p):
@@ -799,10 +870,20 @@ def p_command_bin(p):
                | CMD_BIN field_name'''
     args={}
     data=extractData(p)
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend"}
     if "args" in data:
         for obj in data["args"]:
             extendDict(args,data["args"][obj])
     checkArgs(p,args)
+    for t in data:
+        if t == "rfield_term":
+            p[0]["input"] += data[t][0]["input"]
+            p[0]["output"] += data[t][0]["output"]
+        elif t == "field_name":
+            p[0]["input"] += data[t][0]["field"]
+            p[0]["fields-effect"] = "none"
+
+    '''
     if len(p) == 5 and isinstance(p[3],dict):
         p[0] = {"type":"command","input":p[3]["input"],"output":p[3]["output"],"fields-effect":"extend"}
     elif len(p) == 4 and isinstance(p[2],dict) and "input" in p[2]:
@@ -818,6 +899,7 @@ def p_command_bin(p):
             p[0] = {"type":"command","input":[p[2]],"output":[],"fields-effect":"none"}
         else:
             p[0] = {"type":"command","input":[p[3]],"output":[],"fields-effect":"none"}
+    '''
 
 # TOP
 def p_command_top(p):
@@ -877,8 +959,8 @@ def p_command_chart_by_2(p):
         if "type" in pp:
                 if pp["type"] == "args_list":
                     extendDict(p[0]["args"],pp["args"])
-        else:
-            p[0]["fields"].append(pp)
+                elif pp["type"] == "field_name":
+                    p[0]["fields"].append(pp["field"])
 
 
 def p_command_chart_by_1(p):
@@ -886,7 +968,7 @@ def p_command_chart_by_1(p):
                           | BY_CLAUSE field_name args_list
                           | BY_CLAUSE field_name chart_where_clause
                           | BY_CLAUSE field_name'''
-    p[0] = {"type":"chart_by","fields":[p[2]],"args":{}}
+    p[0] = {"type":"chart_by","fields":[p[2]["field"]],"args":{}}
     if len(p) > 3:
         if "type" in p[3] and p[3]["type"] == "args_list":
             p[0]["args"]=p[3]["args"]
@@ -894,7 +976,7 @@ def p_command_chart_by_1(p):
 def p_command_chart_over(p):
     '''command_chart_over : OVER_OP field_name args_list
                           | OVER_OP field_name'''
-    p[0] = {"type":"chart_over","fields":[p[2]],"args":{}}
+    p[0] = {"type":"chart_over","fields":[p[2]["field"]],"args":{}}
     if len(p) == 4:
         p[0]["args"]=p[3]["args"]
 
@@ -906,9 +988,14 @@ def p_command_chart_where_clause(p):
                           | agg_term NOTIN_OP BOTTOM_OP NUMBER
                           | agg_term COMP_OP NUMBER
                           | agg_term COMP_OP FLOAT'''
-    p[0] = {"type":"chart_where_clause","fields":[p[1]],"options":[],"value":p[len(p)-1]}
+    p[0] = {"type":"chart_where_clause","fields":p[1]["input"],"options":[],"value":p[len(p)-1]}
     if len(p) > 4:
         p[0]["options"].append(p[2]).append(p[3]) 
+
+# COFILTER
+def p_command_cofilter(p):
+    'command : CMD_COFILTER field_name field_name'
+    p[0] = {"type":"command","input":[p[2]["field"],p[2]["field"]],"output":[],"fields-effect":"replace"}
 
 #--------------------
 # Generic args positioning
@@ -921,26 +1008,14 @@ def p_command_params_by_and_fields_or_args(p):
                           | BY_CLAUSE fields_list
                           | command_params_fields_or_args'''
     data = {"args":{},"fields":[],"by":[]}
-    if len(p) == 5:
-        data["by"]=p[3]
-        data["fields"] = p[1]["fields"]
-        for k in p[1]["args"]:
-            data["args"][k]=p[1]["args"][k]
-        for k in p[4]:
-            data["args"][k]=p[4][k]
-    elif len(p) == 4:
-        if p[1] == "by":
-            data["by"]=p[2]
-            data["args"]=p[3]["args"]
-        else:
-            data["by"]=p[3]
-            data["fields"] = p[1]["fields"]
-            data["args"]=p[1]["args"]
-    elif len(p) == 3:
-        data["by"]=p[2]
-    elif len(p) == 2:
-        data["args"] = p[1]["args"]
-        data["fields"] = p[1]["fields"]
+    for pp in p[1:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "command_params_fields_or_args":
+                data["fields"] += pp["fields"]
+            elif pp["type"] == "args_list":
+                extendDict(data["args"],pp["args"])
+            elif pp["type"] == "fields_list":
+                data["by"] += pp["input"]
     p[0] = data
 
 def p_command_params_fields_or_args(p):
@@ -949,23 +1024,12 @@ def p_command_params_fields_or_args(p):
                                | fields_list args_list
                                | args_list
                                | fields_list'''
-    data = {"args":{},"fields":[]}
-    if len(p) == 4:
-        data["fields"] = p[2]
-        for k in p[1]["args"]:
-            data["args"][k]=p[1]["args"][k]
-        for k in p[3]["args"]:
-            data["args"][k]=p[3]["args"][k]
-    elif len(p) == 3:
-        if isinstance(p[1],dict):
-            data = {"args":p[1]["args"],"fields":p[2]}
-        else:
-            data = {"args":p[2]["args"],"fields":p[1]}
-    else:
-        if isinstance(p[1],dict):
-            data = {"args":p[1]["args"],"fields":[]}
-        else:
-            data = {"args":{},"fields":p[1]}
+    data = {"type":"command_params_fields_or_args","args":{},"fields":[]}
+    for pp in p[1:]:
+        if pp["type"] == "args_list":
+            extendDict(data["args"],pp["args"])
+        elif pp["type"] == "fields_list":
+            data["fields"] += pp["input"]
     p[0] = data
 
 #---------------------------
@@ -1011,18 +1075,23 @@ def p_agg_term(p):
                 | NAME AS_CLAUSE field_name
                 | NAME'''
     if len(p) == 7:
-        p[0] = {"type":"agg_term","input":[p[3]],"output":[p[6]]}
+        p[0] = {"type":"agg_term","input":p[3]["input"],"output":[p[6]["field"]]}
     elif len(p) == 5:
-        p[0] = {"type":"agg_term","input":[p[3]],"output":["{}({})".format(p[1],p[3])]}
+        p[0] = {"type":"agg_term","input":p[3]["input"],"output":["{}({})".format(p[1],p[3]["input"][0])]}
     elif len(p) == 4:
-        p[0] = {"type":"agg_term","input":[p[1]],"output":[p[3]]}
+        p[0] = {"type":"agg_term","input":[p[1]],"output":[p[3]["field"]]}
     else:
-        p[0] = {"type":"agg_term","input":[],"output":[p[1]]}
+        p[0] = {"type":"agg_term","input":[p[1]],"output":[p[1]]}
 
 def p_agg_term_arg(p):
     '''agg_term_arg : eval_expr_fun_value
                     | field_name'''
-    p[0]=p[1]
+    p[0] = {"type":"agg_term_arg","input":[""],"output":[]}
+    if "type" in p[1]:
+        if p[1]["type"] == "eval_expr_fun_value":
+            p[0]["content"] = p[1]["content"]
+        elif p[1]["type"] == "field_name":
+            p[0]["input"] = [p[1]["field"]]
 
 def p_agg_or_eval_list(p):
     '''agg_or_eval_list : agg_terms_list
@@ -1033,9 +1102,20 @@ def p_agg_or_eval_list(p):
 # FIELDS
 #---------------------------
 def p_anyfields_list(p):
-    '''any_fields_list : rfields_list
-                       | fields_list'''
-    p[0] = p[1]
+    '''any_fields_list : any_fields_list COMMA rfield_term
+                       | any_fields_list rfield_term
+                       | any_fields_list COMMA field_name
+                       | any_fields_list field_name
+                       | rfield_term
+                       | field_name'''
+    p[0] = {"type":"any_fields_list","input":[],"output":[]}
+    if len(p) > 2:
+        p[0] = {"type":"any_fields_list","input":p[1]["input"],"output":p[1]["output"]}
+    if p[len(p)-1]["type"] == "rfield_term":
+        p[0]["input"] += p[len(p)-1]["input"]
+        p[0]["output"] += p[len(p)-1]["output"]
+    else:
+        p[0]["input"] += [p[len(p)-1]["field"]]
 
 def p_rfields_list(p):
     '''rfields_list : rfields_list COMMA rfield_term
@@ -1052,26 +1132,27 @@ def p_fields_list(p):
     '''fields_list : fields_list COMMA field_name
                    | fields_list field_name
                    | field_name'''
+    p[0] = {"type":"fields_list","input":[],"output":[]}
     if len(p) == 4:
-        p[0] = p[1] + [p[3]]
+        p[0]["input"] = p[1]["input"] + [p[3]["field"]]
     elif len(p) == 3:
-        p[0] = p[1] + [p[2]]
+        p[0]["input"] = p[1]["input"] + [p[2]["field"]]
     else:
-        p[0] = [p[1]]
+        p[0]["input"] = [p[1]["field"]]
 
 def p_rfield_term(p):
     '''rfield_term : field_name AS_CLAUSE field_name'''
-    p[0] = {"type":"rfield_term","input":[p[1]],"output":[p[3]]}
+    p[0] = {"type":"rfield_term","input":[p[1]["field"]],"output":[p[3]["field"]]}
 
 def p_field_name(p):
     '''field_name : NAME
                   | PATTERN'''
-    p[0] = p[1]
+    p[0] = {"type":"field_name","field":p[1]}
 
 def p_field_name_agg_fun(p):
     'field_name : NAME LPAREN field_name RPAREN'
     # Case when a field has been named after the use of an agregation function
-    p[0]="{}({})".format(p[1],p[3])
+    p[0] = {"type":"field_name","field":["{}({})".format(p[1],p[3]["field"])]}
 
 #---------------------------
 # Args
@@ -1080,25 +1161,28 @@ def p_args_list(p):
     '''args_list : args_list args_term
                  | args_term'''
     p[0] = {"type":"args_list","args":{}}
+    p[0]["args"] = p[1]["args"].copy()
     if len(p) == 3:
-        p[0]["args"] = p[1]["args"].copy()
-        for key in p[2]:
-            p[0]["args"][key] = p[2][key]
-    else:
-        p[0]["args"] = p[1].copy()
+        extendDict(p[0]["args"],p[2]["args"])
 
 def p_args_term(p):
     '''args_term : NAME EQ args_value
-                 | commands_names EQ args_value'''
+                 | commands_names EQ args_value
+                 | OUTPUT_OP EQ args_value'''
     # Command names have to be allowed as argument names for cases
     # like append which can be both a command or an argument
-    p[0]={}
-    p[0][p[1]]=p[3]
+    p[0] = {"type":"args_term","args":{}}
+    p[0]["args"][p[1]]=p[3]["value"]
 
 def p_args_value(p):
     '''args_value : value
                   | eval_expr_fun_value'''
-    p[0] = p[1]
+    p[0] = {"type":"args_value","value":""}
+    if "type" in p[1]:
+        if p[1]["type"] == "eval_expr_fun_value":
+            p[0]["value"] = p[1]["content"]
+        elif p[1]["type"] == "value":
+            p[0]["value"] = p[1]["value"]
 
 #---------------------------
 # Values
@@ -1108,10 +1192,11 @@ def p_value_number(p):
              | FLOAT
              | MINUS NUMBER %prec UMINUS
              | MINUS FLOAT %prec UMINUS"""
+    p[0] = {"type":"value","value":""}
     if len(p) == 3:
-        p[0]="-"+str(p[2])
+        p[0]["value"] = "-"+str(p[2])
     else:
-        p[0]=str(p[1])
+        p[0]["value"] = str(p[1])
 
 def p_value_string(p):
     """value : QUOTE NAME QUOTE
@@ -1119,28 +1204,30 @@ def p_value_string(p):
              | NAME
              | PATTERN
              | QUOTE QUOTE"""
+    p[0] = {"type":"value","value":""}
     if len(p) == 4:
-        p[0] = p[2]
+        p[0]["value"] = p[2]
     elif len(p) == 3:
-        p[0]=""
+        p[0]["value"] = ""
     else:
-        p[0]=str(p[1])
+        p[0]["value"] = str(p[1])
 
 def p_value_time(p):
     'value : TIMESPECIFIER'
-    p[0]=str(p[1])
+    p[0] = {"type":"value","value":str(p[1])}
 
 def p_value_date(p):
     'value : DATE'
-    p[0]=str(p[1])
+    p[0] = {"type":"value","value":str(p[1])}
 
 def p_values_list(p):
     '''values_list : values_list COMMA value
                    | value'''
+    p[0] = {"type":"values_list","values":[]}
     if len(p) == 4:
-        p[0] = p[1] + [p[3]]
+        p[0]["values"] = p[1]["values"] + [p[3]["value"]]
     else:
-        p[0]=[p[1]]
+        p[0]["values"].append(p[1]["value"])
 
 '''
 def p_empty(p):

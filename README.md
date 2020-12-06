@@ -63,6 +63,10 @@ SPL commands specification is done in the `spl_commands.json` file
 | bucketdir | all args | | |
 | cefout | all args | | |
 | chart | all args | | Grammar is quite complex, might be some bugs |
+| cluster | all args | | |
+| cofilter | | Name of outputed fields | |
+| collect | all args | | |
+| concurrency | all args | | |
 | dedup | all args | | |
 | eval | | | |
 | expand | | | |
