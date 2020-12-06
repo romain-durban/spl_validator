@@ -94,7 +94,7 @@ def t_DATE(t):
 
 #Strings
 def t_PATTERN(t):
-    r'(\*[^\*\s]+\*|\*[a-zA-Z0-9_\.\{\}\-]+|[a-zA-Z0-9_\.\{\}\-]+\*)'
+    r'(\*[^\*\s]+\*|\*[a-zA-Z0-9_\.\{\}\-:]+|[a-zA-Z0-9_\.\{\}\-:]+\*)'
     return t
 
 def t_STRING(t):
@@ -103,7 +103,7 @@ def t_STRING(t):
     return t
 
 def t_NAME(t):
-    r'[a-zA-Z0-9_\{\}][a-zA-Z0-9_\.\{\}\-]*'
+    r'[a-zA-Z0-9_\{\}][a-zA-Z0-9_\.\{\}\-:]*'
     global cmd_conf
     if t.value.lower() in cmd_conf:
         t.type = cmd_conf[t.value.lower()]["token_name"]    # Check for command names, lowercase
@@ -487,6 +487,8 @@ def p_commands_names(p):
                       | CMD_DATAMODEL
                       | CMD_DBINSPECT
                       | CMD_DEDUP
+                      | CMD_DELETE
+                      | CMD_DELTA
                       | CMD_EVAL
                       | CMD_EXPAND
                       | CMD_FIELDS
@@ -495,6 +497,7 @@ def p_commands_names(p):
                       | CMD_INPUTLOOKUP
                       | CMD_LOOKUP
                       | CMD_OUTPUTLOOKUP
+                      | CMD_REGEX
                       | CMD_RENAME
                       | CMD_REVERSE
                       | CMD_SEARCH
@@ -680,7 +683,8 @@ def p_command_basic_no_field(p):
                | CMD_ASSOCIATE
                | CMD_TRANSACTION
                | CMD_CORRELATE
-               | CMD_DBINSPECT'''
+               | CMD_DBINSPECT
+               | CMD_DELETE'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -1084,6 +1088,38 @@ def p_command_datamodel(p):
             report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected datamode search mode '{}', expected {}".format(sm,cmd_conf[p[1]]["search_modes"]),None,value=sm)
     checkArgs(p,args)
 
+# DELTA
+def p_command_delta(p):
+    '''command : CMD_DELTA args_term field_name AS_CLAUSE field_name
+               | CMD_DELTA field_name AS_CLAUSE field_name args_term
+               | CMD_DELTA field_name AS_CLAUSE field_name
+               | CMD_DELTA args_term field_name
+               | CMD_DELTA field_name args_term
+               | CMD_DELTA field_name'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_term":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "field_name":
+                if len(p[0]["input"]) == 0:
+                    p[0]["input"].append(pp["field"])
+                else:
+                    p[0]["output"].append(pp["field"])
+    if len(p[0]["output"]) == 0:
+        p[0]["output"].append("{}({})".format(p[1],p[0]["input"][0]))
+    checkArgs(p,args)
+
+# REGEX
+def p_command_regex(p):
+    '''command : CMD_REGEX field_name EQ STRING
+               | CMD_REGEX field_name NEQ STRING
+               | CMD_REGEX STRING'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[p[len(p)-1]]}
+    if isinstance(p[2],dict):
+        p[0]["input"].append(p[2]["field"])
+
 #--------------------
 # Generic args positioning
 #--------------------
@@ -1233,11 +1269,13 @@ def p_rfield_term(p):
 
 def p_field_name(p):
     '''field_name : NAME
-                  | PATTERN'''
+                  | PATTERN
+                  | STRING'''
     p[0] = {"type":"field_name","field":p[1]}
 
 def p_field_name_agg_fun(p):
-    'field_name : NAME LPAREN field_name RPAREN'
+    '''field_name : NAME LPAREN field_name RPAREN
+                  | commands_names LPAREN field_name RPAREN'''
     # Case when a field has been named after the use of an agregation function
     p[0] = {"type":"field_name","field":["{}({})".format(p[1],p[3]["field"])]}
 

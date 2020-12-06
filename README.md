@@ -72,7 +72,10 @@ SPL commands specification is done in the `spl_commands.json` file
 | correlate | all args | | |
 | ctable | all args | | alias of contingency |
 | datamodel | all args | | |
+| dbinspect | all args | | |
 | dedup | all args | | |
+| delete | | | |
+| delta | all args | | |
 | eval | | | |
 | expand | | | |
 | fields | | | |
@@ -81,6 +84,7 @@ SPL commands specification is done in the `spl_commands.json` file
 | inputlookup | all args and where | | |
 | lookup | all args | | |
 | outputlookup | all args | | |
+| regex | all args | | |
 | rename | | | |
 | reverse | | | |
 | search | accidently most args | probably args with special characters | |
