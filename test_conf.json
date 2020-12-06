@@ -396,6 +396,113 @@
 			"exp_err":0,
 			"tags":["search","concurrency","valid","splunk_doc","transaction","eval"]
 		},
+		"splunk_contingency_1": {
+			"search":"source=all_month.csv | contingency mag depth | sort mag",
+			"exp_err":0,
+			"tags":["search","contingency","valid","splunk_doc","sort"]
+		},
+		"splunk_contingency_2": {
+			"search":"index=_internal | contingency maxcols=5 log_level component",
+			"exp_err":0,
+			"tags":["search","contingency","valid","splunk_doc"]
+		},
+		"splunk_convert_1": {
+			"search":"index=idx | convert auto(*)",
+			"exp_err":0,
+			"tags":["search","convert","valid","splunk_doc"]
+		},
+		"splunk_convert_2": {
+			"search":"index=idx | convert auto(*) none(foo)",
+			"exp_err":0,
+			"tags":["search","convert","valid","splunk_doc"]
+		},
+		"splunk_convert_3": {
+			"search":"index=idx | convert dur2sec(xdelay) dur2sec(delay)",
+			"exp_err":0,
+			"tags":["search","convert","valid","splunk_doc"]
+		},
+		"splunk_convert_4": {
+			"search":"index=idx | convert dur2sec(delay)",
+			"exp_err":0,
+			"tags":["search","convert","valid","splunk_doc"]
+		},
+		"splunk_convert_5": {
+			"search":"index=idx | convert rmunit(duration)",
+			"exp_err":0,
+			"tags":["search","convert","valid","splunk_doc"]
+		},
+		"splunk_convert_6": {
+			"search":"index=idx | convert memk(virt)",
+			"exp_err":0,
+			"tags":["search","convert","valid","splunk_doc"]
+		},
+		"splunk_convert_7": {
+			"search":"index=idx source=\"all_month.csv\" | convert timeformat=\"%H:%M:%S\" ctime(_time) AS c_time | table _time, c_time",
+			"exp_err":0,
+			"tags":["search","convert","valid","splunk_doc","table"]
+		},
+		"splunk_convert_8": {
+			"search":"sourcetype=syslog | convert mstime(_time) AS ms_time | table _time, ms_time",
+			"exp_err":0,
+			"tags":["search","convert","valid","splunk_doc","table"]
+		},
+		"splunk_convert_9": {
+			"search":"index=idx | convert num(time_elapsed) | stats sum(eval(time_elapsed/60)) AS Minutes BY user_id",
+			"exp_err":0,
+			"tags":["search","convert","valid","splunk_doc","stats"]
+		},
+		"splunk_datamodel_1": {
+			"search":"| datamodel",
+			"exp_err":0,
+			"tags":["datamodel","valid","splunk_doc"]
+		},
+		"splunk_datamodel_2": {
+			"search":"| datamodel internal_audit_logs",
+			"exp_err":0,
+			"tags":["datamodel","valid","splunk_doc"]
+		},
+		"splunk_datamodel_3": {
+			"search":"| datamodel Tutorial Client_errors",
+			"exp_err":0,
+			"tags":["datamodel","valid","splunk_doc"]
+		},
+		"splunk_datamodel_4": {
+			"search":"| datamodel Tutorial Client_errors search",
+			"exp_err":0,
+			"tags":["datamodel","valid","splunk_doc"]
+		},
+		"splunk_datamodel_5": {
+			"search":"| datamodel Tutorial Client_errors search | search Tutorial.status=404 | stats count",
+			"exp_err":0,
+			"tags":["datamodel","valid","splunk_doc","search","stats"]
+		},
+		"splunk_datamodel_6": {
+			"search":"| datamodel Tutorial summariesonly=true search | timechart span=1h count",
+			"exp_err":0,
+			"tags":["datamodel","valid","splunk_doc","search","timechart"]
+		},
+		"splunk_dbinspect_1": {
+			"search":"| dbinspect index=_internal span=1d",
+			"exp_err":0,
+			"tags":["dbinspect","valid","splunk_doc"]
+		},
+		"splunk_dbinspect_2": {
+			"search":"| dbinspect index=_internal corruptonly=true",
+			"exp_err":0,
+			"tags":["dbinspect","valid","splunk_doc"]
+		},
+		"splunk_dbinspect_3": {
+			"search":"| dbinspect index=_internal | stats count by splunk_server",
+			"exp_err":0,
+			"tags":["dbinspect","valid","splunk_doc","stats"]
+		},
+		"splunk_dbinspect_4": {
+			"search":"| dbinspect index=_internal | eval GB=sizeOnDiskMB/1024| stats sum(GB)",
+			"exp_err":0,
+			"tags":["dbinspect","valid","splunk_doc","eval","stats"]
+		},
+
+
 
 
 

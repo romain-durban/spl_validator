@@ -162,12 +162,13 @@ def p_search_exp(p):
     fields = {"type":"search_exp","input":[],"output":[],"fields-effect":[],"content":[]}
     if len(p) == 4:
         flt=p[1]
-        fields["content"] += p[1]["content"]
+        fields["content"] += p[1]["content"] + p[3]["content"]
         cmd=p[3]
         fields["fields-effect"]=p[3]["fields-effect"]
     elif len(p) == 3:
         cmd=p[2]
         fields["fields-effect"]=p[2]["fields-effect"]
+        fields["content"] += p[2]["content"]
     elif len(p) == 2:
         flt=p[1]
         fields["content"] += p[1]["content"]
@@ -419,7 +420,7 @@ def p_commands(p):
     '''commands : commands PIPE command
                 | command'''
     if len(p) == 4:
-        p[0] = {"type":"command","input":p[1]["input"]+p[3]["input"],"output":[],"fields-effect":p[1]["fields-effect"]+[p[3]["fields-effect"]]}
+        p[0] = {"type":"command","input":p[1]["input"]+p[3]["input"],"output":[],"fields-effect":p[1]["fields-effect"]+[p[3]["fields-effect"]],"content":[]}
         if p[3]["fields-effect"] == "replace":
             p[0]["output"] = p[3]["output"]
         elif p[3]["fields-effect"] == "remove":
@@ -435,10 +436,16 @@ def p_commands(p):
             p[0]["output"] = p[0]["output"] + p[3]["output"]
         else:
             p[0]["output"] = p[1]["output"]+p[3]["output"]
+        if "content" in p[1]:
+            p[0]["content"] += p[1]["content"]
+        if "content" in p[3]:
+            p[0]["content"] += p[3]["content"]
     else:
         p[0]=p[1]
-        if not p[1] is None:
-            p[0]["fields-effect"]=[p[1]["fields-effect"]]
+        p[0]["fields-effect"]=[p[1]["fields-effect"]]
+        if not "content" in p[0]:
+            p[0]["content"]=[]
+    
 
 # ERROR HANDLING
 def p_commands_error(p):
@@ -474,6 +481,11 @@ def p_commands_names(p):
                       | CMD_COFILTER
                       | CMD_COLLECT
                       | CMD_CONCURRENCY
+                      | CMD_CONTINGENCY
+                      | CMD_CONVERT
+                      | CMD_CORRELATE
+                      | CMD_DATAMODEL
+                      | CMD_DBINSPECT
                       | CMD_DEDUP
                       | CMD_EVAL
                       | CMD_EXPAND
@@ -666,7 +678,9 @@ def p_command_basic_no_field(p):
                | CMD_REVERSE
                | CMD_APPENDPIPE
                | CMD_ASSOCIATE
-               | CMD_TRANSACTION'''
+               | CMD_TRANSACTION
+               | CMD_CORRELATE
+               | CMD_DBINSPECT'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -693,7 +707,8 @@ def p_command_basic_only_args(p):
                | CMD_BUCKETDIR args_list
                | CMD_CLUSTER args_list
                | CMD_COLLECT args_list
-               | CMD_CONCURRENCY args_list'''
+               | CMD_CONCURRENCY args_list
+               | CMD_DBINSPECT args_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     checkArgs(p,p[2]["args"])
     p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
@@ -739,10 +754,16 @@ def commands_args_and_fields_output_update(p,args):
         if "pathfield" in args:
             out["input"].append(args["pathfield"])
     elif p[1] == "table":
-        p[0] = {"type":"command","input":p[2],"output":p[2],"fields-effect":"replace"}
+        out = {"type":"command","input":p[2]["input"],"output":p[2]["input"],"fields-effect":"replace"}
     elif p[1] == "cluster":
         if "field" in args:
                 p[0]["input"].append(args["field"])
+    elif p[1] == "dbinspect":
+        out["fields-effect"] = "replace"
+        out["output"] = cmd_conf[p[1]]["created_fields"]
+        if "index" in args:
+            out["input"].append("index")
+            out["content"]=[args["index"]]
     return out
 
 # WHERE
@@ -883,24 +904,6 @@ def p_command_bin(p):
             p[0]["input"] += data[t][0]["field"]
             p[0]["fields-effect"] = "none"
 
-    '''
-    if len(p) == 5 and isinstance(p[3],dict):
-        p[0] = {"type":"command","input":p[3]["input"],"output":p[3]["output"],"fields-effect":"extend"}
-    elif len(p) == 4 and isinstance(p[2],dict) and "input" in p[2]:
-        p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"extend"}
-    elif len(p) == 4 and isinstance(p[3],dict) and "input" in p[3]:
-        p[0] = {"type":"command","input":p[3]["input"],"output":p[3]["output"],"fields-effect":"extend"}
-    elif len(p) == 3 and isinstance(p[2],dict):
-        p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"extend"}
-    elif len(p) == 3:
-        p[0] = {"type":"command","input":[p[2]],"output":[],"fields-effect":"none"}
-    else:
-        if isinstance(p[3],dict):
-            p[0] = {"type":"command","input":[p[2]],"output":[],"fields-effect":"none"}
-        else:
-            p[0] = {"type":"command","input":[p[3]],"output":[],"fields-effect":"none"}
-    '''
-
 # TOP
 def p_command_top(p):
     '''command : CMD_TOP NUMBER command_params_by_and_fields_or_args
@@ -996,6 +999,90 @@ def p_command_chart_where_clause(p):
 def p_command_cofilter(p):
     'command : CMD_COFILTER field_name field_name'
     p[0] = {"type":"command","input":[p[2]["field"],p[2]["field"]],"output":[],"fields-effect":"replace"}
+
+# CONTINGENCY
+def p_command_contingency(p):
+    '''command : CMD_CONTINGENCY args_list field_name fields_list args_list
+               | CMD_CONTINGENCY args_list field_name fields_list
+               | CMD_CONTINGENCY field_name fields_list args_list
+               | CMD_CONTINGENCY field_name field_name'''
+    args={}
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"replace"}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "field_name":
+            p[0]["input"].append(pp["field"])
+    # First field appears in the results along with the values of the second field
+    p[0]["output"].append(p[0]["input"][0])
+    checkArgs(p,args)
+
+# CONVERT
+def p_command_convert(p):
+    '''command : CMD_CONVERT args_term convert_list
+               | CMD_CONVERT convert_list'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_term":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "convert_list":
+                p[0]["input"] += pp["input"]
+                p[0]["output"] += pp["output"]
+    checkArgs(p,args)
+
+def p_command_convert_list(p):
+    '''convert_list : convert_list COMMA convert_fun
+                    | convert_list convert_fun
+                    | convert_fun'''
+    p[0] = {"type":"convert_list","input":p[1]["input"],"output":p[1]["output"],"op":p[1]["op"]}
+    if len(p) > 2:
+        p[0]["input"] += p[len(p)-1]["input"]
+        p[0]["output"] += p[len(p)-1]["output"]
+
+
+def p_command_convert_fun(p):
+    '''convert_fun : NAME LPAREN field_name RPAREN
+                   | NAME LPAREN field_name RPAREN AS_CLAUSE field_name
+                   | NAME LPAREN TIMES RPAREN
+                   | NAME LPAREN TIMES RPAREN AS_CLAUSE field_name'''
+    p[0] = {"type":"convert_fun","input":[],"output":[],"op":[p[1]]}
+    if isinstance(p[3],dict):
+        p[0]["input"].append(p[3]["field"])
+    else:
+        p[0]["input"].append(p[3])
+    if isinstance(p[len(p)-1],dict) and p[len(p)-1]["type"] == "field_name":
+        p[0]["output"].append(p[len(p)-1]["field"])
+
+# DATAMODEL
+def p_command_datamodel(p):
+    '''command : CMD_DATAMODEL field_name field_name field_name args_list
+               | CMD_DATAMODEL field_name field_name CMD_SEARCH args_list
+               | CMD_DATAMODEL field_name field_name args_list
+               | CMD_DATAMODEL field_name args_list
+               | CMD_DATAMODEL args_list
+               | CMD_DATAMODEL field_name field_name field_name
+               | CMD_DATAMODEL field_name field_name CMD_SEARCH
+               | CMD_DATAMODEL field_name field_name
+               | CMD_DATAMODEL field_name
+               | CMD_DATAMODEL'''
+    global cmd_conf
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "field_name":
+                p[0]["output"].append(pp["field"])
+        else:
+            p[0]["output"].append(pp)
+    if len(p[0]["output"]) == 3:
+        sm=p[0]["output"][2]
+        if not sm in cmd_conf[p[1]]["search_modes"]:
+            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected datamode search mode '{}', expected {}".format(sm,cmd_conf[p[1]]["search_modes"]),None,value=sm)
+    checkArgs(p,args)
 
 #--------------------
 # Generic args positioning

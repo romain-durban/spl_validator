@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='index=idx | analyzefields classfield=is_activated'
+s='| dbinspect index=test'
 print(s)
 
 spl_validator.analyze(s,verbose=True)

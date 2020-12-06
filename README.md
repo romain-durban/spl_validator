@@ -67,6 +67,11 @@ SPL commands specification is done in the `spl_commands.json` file
 | cofilter | | Name of outputed fields | |
 | collect | all args | | |
 | concurrency | all args | | |
+| contingency | all args | | |
+| convert | all args | | |
+| correlate | all args | | |
+| ctable | all args | | alias of contingency |
+| datamodel | all args | | |
 | dedup | all args | | |
 | eval | | | |
 | expand | | | |
