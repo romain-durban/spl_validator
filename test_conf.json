@@ -546,8 +546,46 @@
 			"exp_err":0,
 			"tags":["search","delta","valid","splunk_doc","transaction","eval"]
 		},
-		
-
+		"splunk_diff_1": {
+			"search":"index=idx | diff pos1=1 pos2=3 attribute=ip",
+			"exp_err":0,
+			"tags":["search","diff","valid","splunk_doc"]
+		},
+		"splunk_diff_2": {
+			"search":"index=idx | diff position1=9 position2=10",
+			"exp_err":0,
+			"tags":["search","diff","valid","splunk_doc"]
+		},
+		"splunk_erex_1": {
+			"search":"index=idx | erex monthday examples=\"7/01\"",
+			"exp_err":0,
+			"tags":["search","erex","valid","splunk_doc"]
+		},
+		"splunk_erex_2": {
+			"search":"index=idx | erex monthday examples=\"7/01, 07/02\" counterexamples=\"99/2\"",
+			"exp_err":0,
+			"tags":["search","erex","valid","splunk_doc"]
+		},
+		"splunk_erex_3": {
+			"search":"sourcetype=secure* port \"failed password\" | erex port examples=\"port 3351, port 3768\" | top port",
+			"exp_err":0,
+			"tags":["search","erex","valid","splunk_doc","top"]
+		},
+		"splunk_eventcount_1": {
+			"search":"| eventcount",
+			"exp_err":0,
+			"tags":["search","eventcount","valid","splunk_doc"]
+		},
+		"splunk_eventcount_2": {
+			"search":"| eventcount summarize=false index=_* report_size=true",
+			"exp_err":0,
+			"tags":["search","eventcount","valid","splunk_doc"]
+		},
+		"splunk_eventcount_3": {
+			"search":"| eventcount summarize=false index=* index=_*",
+			"exp_err":0,
+			"tags":["search","eventcount","valid","splunk_doc"]
+		},
 
 
 

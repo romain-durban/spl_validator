@@ -76,6 +76,8 @@ SPL commands specification is done in the `spl_commands.json` file
 | dedup | all args | | |
 | delete | | | |
 | delta | all args | | |
+| diff | all args | | |
+| erex | all args | | |
 | eval | | | |
 | expand | | | |
 | fields | | | |

@@ -489,7 +489,10 @@ def p_commands_names(p):
                       | CMD_DEDUP
                       | CMD_DELETE
                       | CMD_DELTA
+                      | CMD_DIFF
+                      | CMD_EREX
                       | CMD_EVAL
+                      | CMD_EVENTCOUNT
                       | CMD_EXPAND
                       | CMD_FIELDS
                       | CMD_FILLNULL
@@ -684,7 +687,9 @@ def p_command_basic_no_field(p):
                | CMD_TRANSACTION
                | CMD_CORRELATE
                | CMD_DBINSPECT
-               | CMD_DELETE'''
+               | CMD_DELETE
+               | CMD_DIFF
+               | CMD_EVENTCOUNT'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -712,7 +717,9 @@ def p_command_basic_only_args(p):
                | CMD_CLUSTER args_list
                | CMD_COLLECT args_list
                | CMD_CONCURRENCY args_list
-               | CMD_DBINSPECT args_list'''
+               | CMD_DBINSPECT args_list
+               | CMD_DIFF args_list
+               | CMD_EVENTCOUNT args_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     checkArgs(p,p[2]["args"])
     p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
@@ -768,6 +775,15 @@ def commands_args_and_fields_output_update(p,args):
         if "index" in args:
             out["input"].append("index")
             out["content"]=[args["index"]]
+    elif p[1] == "diff":
+        if "attribute" in args:
+            p[0]["input"].append(args["attribute"])
+    elif p[1] == "eventcount":
+        if "index" in args:
+            if isinstance(args["index"],list):
+                p[0]["content"] = args["index"]
+            else:
+                p[0]["content"] = [args["index"]]
     return out
 
 # WHERE
@@ -1072,7 +1088,7 @@ def p_command_datamodel(p):
                | CMD_DATAMODEL field_name
                | CMD_DATAMODEL'''
     global cmd_conf
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"generate"}
     args={}
     for pp in p[2:]:
         if isinstance(pp,dict):
@@ -1096,7 +1112,7 @@ def p_command_delta(p):
                | CMD_DELTA args_term field_name
                | CMD_DELTA field_name args_term
                | CMD_DELTA field_name'''
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend"}
     args={}
     for pp in p[2:]:
         if isinstance(pp,dict):
@@ -1109,6 +1125,23 @@ def p_command_delta(p):
                     p[0]["output"].append(pp["field"])
     if len(p[0]["output"]) == 0:
         p[0]["output"].append("{}({})".format(p[1],p[0]["input"][0]))
+    checkArgs(p,args)
+
+# EREX
+def p_command_erex(p):
+    '''command : CMD_EREX args_list field_name args_list
+               | CMD_EREX args_list field_name
+               | CMD_EREX field_name args_list
+               | CMD_EREX args_list'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend"}
+    args={}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "field_name":
+            p[0]["output"].append(pp["field"])
+    if "fromfield" in args:
+        p[0]["input"].append(args["fromfield"])
     checkArgs(p,args)
 
 # REGEX
@@ -1176,7 +1209,13 @@ def extractData(p):
 
 def extendDict(a,b):
     for k in b:
-        a[k]=b[k]
+        if not k in a:
+            a[k]=b[k]
+        else:
+            if isinstance(a[k],list):
+                a[k].append(b[k])
+            else:
+                a[k]=[a[k],b[k]]
 
 #---------------------------
 # AGGREGATION fields
@@ -1270,7 +1309,8 @@ def p_rfield_term(p):
 def p_field_name(p):
     '''field_name : NAME
                   | PATTERN
-                  | STRING'''
+                  | STRING
+                  | commands_names'''
     p[0] = {"type":"field_name","field":p[1]}
 
 def p_field_name_agg_fun(p):
@@ -1301,13 +1341,16 @@ def p_args_term(p):
 
 def p_args_value(p):
     '''args_value : value
-                  | eval_expr_fun_value'''
+                  | eval_expr_fun_value
+                  | TIMES'''
     p[0] = {"type":"args_value","value":""}
     if "type" in p[1]:
         if p[1]["type"] == "eval_expr_fun_value":
             p[0]["value"] = p[1]["content"]
         elif p[1]["type"] == "value":
             p[0]["value"] = p[1]["value"]
+    else:
+        p[0]["value"] = p[1]
 
 #---------------------------
 # Values
