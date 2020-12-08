@@ -79,12 +79,15 @@ SPL commands specification is done in the `spl_commands.json` file
 | diff | all args | | |
 | erex | all args | | |
 | eval | | | |
+| eventcount | all args | | |
+| eventstats | all args | | |
 | expand | | | |
 | fields | | | |
 | fillnull | all args | | |
 | flatten | | | |
 | inputlookup | all args and where | | |
 | lookup | all args | | |
+| makeresults | all args | | also giving the list of fields created even with annotate set to true |
 | outputlookup | all args | | |
 | regex | all args | | |
 | rename | | | |

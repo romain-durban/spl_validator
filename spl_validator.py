@@ -47,7 +47,7 @@ reserved = {
 }
 
 tokens = [
-    'EQ','NEQ','PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'MOD', 'LPAREN','RPAREN','LBRACK','RBRACK','COMMA',
+    'DEQ','EQ','NEQ','PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'MOD', 'LPAREN','RPAREN','QLPAREN','QRPAREN','LBRACK','RBRACK','COMMA',
     'NUMBER', 'FLOAT', 'QUOTE', 'COMP_OP', 'PIPE', 
     'MACRO',
     'NAME','STRING','PATTERN','TIMESPECIFIER','DATE'
@@ -57,6 +57,7 @@ literals = []
 
 # Tokens
 
+t_DEQ = r'\=\='
 t_EQ = r'\='
 t_NEQ = r'!\='
 t_PLUS    = r'\+'
@@ -66,6 +67,8 @@ t_DIVIDE  = r'/'
 t_MOD = r'%'
 t_LPAREN  = r'\('
 t_RPAREN  = r'\)'
+t_QLPAREN  = r'\"\(\"'
+t_QRPAREN  = r'\"\)\"'
 t_LBRACK  = r'\['
 t_RBRACK  = r'\]'
 t_PIPE = r'\|'
@@ -100,6 +103,10 @@ def t_PATTERN(t):
 def t_STRING(t):
     r'"([^"]*\\"[^"]*\\"[^"]*|[^"]+)"'
     t.value=t.value[1:-1]
+    if t.value == "(":
+        t.type = "QLPAREN"
+    elif t.value == ")":
+        t.type = "QRPAREN"
     return t
 
 def t_NAME(t):
@@ -384,6 +391,7 @@ def p_expression_binop(p):
                         | expression_value MINUS expression_value
                         | expression_value TIMES expression_value
                         | expression_value DIVIDE expression_value
+                        | expression_value DEQ expression_value
                         | expression_value EQ expression_value
                         | expression_value COMP_OP expression_value
                         | expression_value MOD expression_value
@@ -399,11 +407,12 @@ def p_expression_binop(p):
 # ---
 
 def p_expression_fun(p):
-    'expr_fun : NAME'
+    '''expr_fun : NAME
+                | CASE_OP'''
     p[0] = {"type":"expression_value","content":p[1],"input":[],"output":[]}
 
 def p_expression_fun_args(p):
-    '''expression_fun_args : expression COMMA expression_fun_args
+    '''expression_fun_args : expression_fun_args COMMA expression 
                            | expression'''
     s=""
     for pp in p[1:]:
@@ -493,12 +502,14 @@ def p_commands_names(p):
                       | CMD_EREX
                       | CMD_EVAL
                       | CMD_EVENTCOUNT
+                      | CMD_EVENTSTATS
                       | CMD_EXPAND
                       | CMD_FIELDS
                       | CMD_FILLNULL
                       | CMD_FLATTEN
                       | CMD_INPUTLOOKUP
                       | CMD_LOOKUP
+                      | CMD_MAKERESULTS
                       | CMD_OUTPUTLOOKUP
                       | CMD_REGEX
                       | CMD_RENAME
@@ -506,6 +517,7 @@ def p_commands_names(p):
                       | CMD_SEARCH
                       | CMD_SORT
                       | CMD_STATS
+                      | CMD_STREAMSTATS
                       | CMD_TABLE
                       | CMD_TOP
                       | CMD_TRANSACTION
@@ -689,7 +701,8 @@ def p_command_basic_no_field(p):
                | CMD_DBINSPECT
                | CMD_DELETE
                | CMD_DIFF
-               | CMD_EVENTCOUNT'''
+               | CMD_EVENTCOUNT
+               | CMD_MAKERESULTS'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -719,7 +732,8 @@ def p_command_basic_only_args(p):
                | CMD_CONCURRENCY args_list
                | CMD_DBINSPECT args_list
                | CMD_DIFF args_list
-               | CMD_EVENTCOUNT args_list'''
+               | CMD_EVENTCOUNT args_list
+               | CMD_MAKERESULTS args_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     checkArgs(p,p[2]["args"])
     p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
@@ -784,6 +798,12 @@ def commands_args_and_fields_output_update(p,args):
                 p[0]["content"] = args["index"]
             else:
                 p[0]["content"] = [args["index"]]
+    elif p[1] == "makeresults":
+        out["fields-effect"] = "generate"
+        out["output"] = cmd_conf[p[1]]["created_fields"]["default"]
+        if "annotate" in args and args["annotate"] in ["t","true","TRUE","True"]:
+            out["output"] = cmd_conf[p[1]]["created_fields"]["annotate"]
+
     return out
 
 # WHERE
@@ -903,6 +923,13 @@ def p_command_autoregress(p):
 def p_command_bin(p):
     '''command : CMD_BIN args_list rfield_term args_list
                | CMD_BIN args_list field_name args_list
+               | CMD_BIN args_list field_name args_list AS_CLAUSE field_name args_list
+               | CMD_BIN field_name args_list AS_CLAUSE field_name args_list
+               | CMD_BIN args_list field_name args_list AS_CLAUSE field_name
+               | CMD_BIN args_list field_name AS_CLAUSE field_name args_list
+               | CMD_BIN field_name AS_CLAUSE field_name args_list
+               | CMD_BIN field_name args_list AS_CLAUSE field_name
+               | CMD_BIN args_list field_name AS_CLAUSE field_name
                | CMD_BIN rfield_term args_list
                | CMD_BIN field_name args_list
                | CMD_BIN args_list rfield_term
@@ -910,19 +937,21 @@ def p_command_bin(p):
                | CMD_BIN rfield_term
                | CMD_BIN field_name'''
     args={}
-    data=extractData(p)
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend"}
-    if "args" in data:
-        for obj in data["args"]:
-            extendDict(args,data["args"][obj])
+    
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "rfield_term":
+                p[0]["input"] += data[t][0]["input"]
+                p[0]["output"] += data[t][0]["output"]
+            elif pp["type"] == "field_name":
+                if len(p[0]["input"]) == 0:
+                    p[0]["input"].append(pp["field"])
+                else:
+                    p[0]["output"].append(pp["field"])
     checkArgs(p,args)
-    for t in data:
-        if t == "rfield_term":
-            p[0]["input"] += data[t][0]["input"]
-            p[0]["output"] += data[t][0]["output"]
-        elif t == "field_name":
-            p[0]["input"] += data[t][0]["field"]
-            p[0]["fields-effect"] = "none"
 
 # TOP
 def p_command_top(p):
@@ -1144,6 +1173,29 @@ def p_command_erex(p):
         p[0]["input"].append(args["fromfield"])
     checkArgs(p,args)
 
+# EVENTSTATS
+def p_command_eventstats(p):
+    '''command : CMD_EVENTSTATS args_term agg_terms_list BY_CLAUSE fields_list
+               | CMD_EVENTSTATS agg_terms_list BY_CLAUSE fields_list args_term
+               | CMD_EVENTSTATS agg_terms_list args_term BY_CLAUSE fields_list
+               | CMD_EVENTSTATS agg_terms_list BY_CLAUSE fields_list
+               | CMD_EVENTSTATS args_term agg_terms_list
+               | CMD_EVENTSTATS agg_terms_list args_term
+               | CMD_EVENTSTATS agg_terms_list
+               '''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend"}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_term":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "agg_terms_list":
+                p[0]["input"] += pp["input"]
+                p[0]["output"] += pp["output"]
+            elif pp["type"] == "fields_list":
+                p[0]["input"] += pp["input"]
+    checkArgs(p,args)
+
 # REGEX
 def p_command_regex(p):
     '''command : CMD_REGEX field_name EQ STRING
@@ -1152,6 +1204,49 @@ def p_command_regex(p):
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[p[len(p)-1]]}
     if isinstance(p[2],dict):
         p[0]["input"].append(p[2]["field"])
+
+# STREAMSTATS
+def p_command_streamstats(p):
+    '''command : CMD_STREAMSTATS streamstats_args agg_terms_list streamstats_args BY_CLAUSE fields_list streamstats_args
+               | CMD_STREAMSTATS agg_terms_list streamstats_args BY_CLAUSE fields_list streamstats_args
+               | CMD_STREAMSTATS streamstats_args agg_terms_list BY_CLAUSE fields_list streamstats_args
+               | CMD_STREAMSTATS streamstats_args agg_terms_list streamstats_args BY_CLAUSE fields_list
+               | CMD_STREAMSTATS streamstats_args agg_terms_list BY_CLAUSE fields_list
+               | CMD_STREAMSTATS agg_terms_list BY_CLAUSE fields_list streamstats_args
+               | CMD_STREAMSTATS agg_terms_list streamstats_args BY_CLAUSE fields_list
+               | CMD_STREAMSTATS streamstats_args agg_terms_list streamstats_args
+               | CMD_STREAMSTATS agg_terms_list streamstats_args
+               | CMD_STREAMSTATS streamstats_args agg_terms_list
+               | CMD_STREAMSTATS agg_terms_list'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend"}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "streamstats_args":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "agg_terms_list":
+                p[0]["input"] += pp["input"]
+                p[0]["output"] += pp["output"]
+            elif pp["type"] == "fields_list":
+                p[0]["input"] += pp["input"]
+    checkArgs(p,args)
+
+def p_command_streamstats_args(p):
+    '''streamstats_args : streamstats_args COMMA streamstats_args_term
+                        | streamstats_args streamstats_args_term
+                        | streamstats_args_term'''
+    p[0] = {"type":"streamstats_args","args":p[1]["args"]}
+    if len(p) > 2:
+        extendDict(p[0]["args"],p[len(p)-1]["args"])
+
+def p_command_streamstats_args_term(p):
+    '''streamstats_args_term : args_term
+                             | NAME EQ QLPAREN expression QRPAREN'''
+    p[0] = {"type":"streamstats_args_term","args":{}}
+    if isinstance(p[1],dict):
+        p[0]["args"] = p[1]["args"]
+    else:
+        p[0]["args"][p[1]] = "\"(\"{}\")\"".format(p[4]["content"])
 
 #--------------------
 # Generic args positioning
