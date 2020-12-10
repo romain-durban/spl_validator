@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='eventtype=\"download\" | bin _time span=1d as day '
+s='index=idx | timechart avg(field) BY mvfield dedup_splitval=true'
 print(s)
 
 spl_validator.analyze(s,verbose=True)

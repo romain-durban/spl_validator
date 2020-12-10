@@ -82,9 +82,11 @@ SPL commands specification is done in the `spl_commands.json` file
 | eventcount | all args | | |
 | eventstats | all args | | |
 | expand | | | |
+| extract | all args | | |
 | fields | | | |
 | fillnull | all args | | |
 | flatten | | | |
+| head | | | |
 | inputlookup | all args and where | | |
 | lookup | all args | | |
 | makeresults | all args | | also giving the list of fields created even with annotate set to true |
@@ -96,6 +98,7 @@ SPL commands specification is done in the `spl_commands.json` file
 | sort | | | |
 | stats | first group of args | arg after group by | |
 | table | | | |
+| timechart | all args | | `agg` arg might not be properly handled since it is badly document, same for the commands with multiple aggregation terms |
 | top | all args | | |
 | transaction | all args | list of fields for arg mvlist because that is a nightmare to handle | |
 | where | | | |

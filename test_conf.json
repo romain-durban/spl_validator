@@ -606,12 +606,46 @@
 			"exp_err":0,
 			"tags":["search","eventstats","valid","splunk_doc","makeresults","streamstats","eval"]
 		},
+		"splunk_extract_1": {
+			"search":"index=idx | extract pairdelim=\"|;\" kvdelim=\"=:\"",
+			"exp_err":0,
+			"tags":["search","extract","valid","splunk_doc"]
+		},
+		"splunk_extract_2": {
+			"search":"index=idx | extract reload=true",
+			"exp_err":0,
+			"tags":["search","extract","valid","splunk_doc"]
+		},
+		"splunk_extract_3": {
+			"search":"index=idx | rename _raw AS temp uri_query AS _raw | extract pairdelim=\"?&\" kvdelim=\"=\" | rename _raw AS uri_query temp AS _raw",
+			"exp_err":0,
+			"tags":["search","extract","valid","splunk_doc","rename"]
+		},
+		"splunk_extract_4": {
+			"search":"index=idx | extract access-extractions",
+			"exp_err":0,
+			"tags":["search","extract","valid","splunk_doc"]
+		},
 
 
 
 
 
-
+		"splunk_head_1": {
+			"search":"index=idx | head 20",
+			"exp_err":0,
+			"tags":["search","head","valid","splunk_doc"]
+		},
+		"splunk_head_2": {
+			"search":"index=idx | head 20",
+			"exp_err":0,
+			"tags":["search","head","valid","splunk_doc"]
+		},
+		"splunk_head_3": {
+			"search":"| makeresults count=7 | streamstats count | eval count=if(count=3,null(), count) | head count<5 keeplast=true null=true",
+			"exp_err":0,
+			"tags":["makeresults","head","valid","splunk_doc","streamstats","eval"]
+		},
 
 
 		"splunk_makeresults_1": {
@@ -669,6 +703,63 @@
 			"exp_err":0,
 			"tags":["search","streamstats","valid","splunk_doc","timechart"]
 		},
+		"splunk_timechart_1": {
+			"search":"index=idx | timechart span=1m eval(avg(CPU) * avg(MEM)) BY host",
+			"exp_err":0,
+			"tags":["search","timechart","valid","splunk_doc"]
+		},
+		"splunk_timechart_2": {
+			"search":"index=idx | timechart eval(round(avg(cpu_seconds),2)) BY processor",
+			"exp_err":0,
+			"tags":["search","timechart","valid","splunk_doc"]
+		},
+		"splunk_timechart_3": {
+			"search":"index=idx | timechart span=1m avg(CPU) BY host",
+			"exp_err":0,
+			"tags":["search","timechart","valid","splunk_doc"]
+		},
+		"splunk_timechart_4": {
+			"search":"index=idx | timechart avg(cpu_seconds) BY host | outlier action=tf",
+			"exp_err":0,
+			"tags":["search","timechart","valid","splunk_doc","outlier"]
+		},
+		"splunk_timechart_5": {
+			"search":"index=idx | timechart span=5m avg(thruput) BY host",
+			"exp_err":0,
+			"tags":["search","timechart","valid","splunk_doc"]
+		},
+		"splunk_timechart_6": {
+			"search":"sshd failed OR failure | timechart span=1m count(eventtype) BY source_ip usenull=f WHERE count>10",
+			"exp_err":0,
+			"tags":["search","timechart","valid","splunk_doc"]
+		},
+		"splunk_timechart_7": {
+			"search":"index=idx | timechart _time span=12h aligntime=@d+5h",
+			"exp_err":0,
+			"tags":["search","timechart","valid","splunk_doc"]
+		},
+		"splunk_timechart_8": {
+			"search":"index=idx | timechart avg(field) BY mvfield dedup_splitvals=true",
+			"exp_err":0,
+			"tags":["search","timechart","valid","splunk_doc"]
+		},
+		"splunk_timechart_9": {
+			"search":"sourcetype=access_* action=purchase | timechart per_hour(price) by productName usenull=f useother=f",
+			"exp_err":0,
+			"tags":["search","timechart","valid","splunk_doc"]
+		},
+		"splunk_timechart_10": {
+			"search":"sourcetype=access_* action=purchase | timechart span=1d count by categoryId usenull=f",
+			"exp_err":0,
+			"tags":["search","timechart","valid","splunk_doc"]
+		},
+		"splunk_timechart_11": {
+			"search":"source=all_month.csv place=*alaska* mag>=3.5 | timechart span=w@w1 count BY mag",
+			"exp_err":0,
+			"tags":["search","timechart","valid","splunk_doc"]
+		},
+
+
 		"splunk_top_1": {
 			"search":"sourcetype=access_* | top limit=20 referer",
 			"exp_err":0,

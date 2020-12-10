@@ -374,6 +374,7 @@ def p_expression_logic_factor(p):
 
 def p_expression_value(p):
     '''expression_value : expr_fun LPAREN expression_fun_args RPAREN
+                        | expr_fun LPAREN RPAREN
                         | value'''
     s=""
     for pp in p[1:]:
@@ -504,9 +505,11 @@ def p_commands_names(p):
                       | CMD_EVENTCOUNT
                       | CMD_EVENTSTATS
                       | CMD_EXPAND
+                      | CMD_EXTRACT
                       | CMD_FIELDS
                       | CMD_FILLNULL
                       | CMD_FLATTEN
+                      | CMD_HEAD
                       | CMD_INPUTLOOKUP
                       | CMD_LOOKUP
                       | CMD_MAKERESULTS
@@ -519,6 +522,7 @@ def p_commands_names(p):
                       | CMD_STATS
                       | CMD_STREAMSTATS
                       | CMD_TABLE
+                      | CMD_TIMECHART
                       | CMD_TOP
                       | CMD_TRANSACTION
                       | CMD_WHERE
@@ -926,10 +930,7 @@ def p_command_bin(p):
                | CMD_BIN args_list field_name args_list AS_CLAUSE field_name args_list
                | CMD_BIN field_name args_list AS_CLAUSE field_name args_list
                | CMD_BIN args_list field_name args_list AS_CLAUSE field_name
-               | CMD_BIN args_list field_name AS_CLAUSE field_name args_list
-               | CMD_BIN field_name AS_CLAUSE field_name args_list
                | CMD_BIN field_name args_list AS_CLAUSE field_name
-               | CMD_BIN args_list field_name AS_CLAUSE field_name
                | CMD_BIN rfield_term args_list
                | CMD_BIN field_name args_list
                | CMD_BIN args_list rfield_term
@@ -1106,13 +1107,15 @@ def p_command_convert_fun(p):
 
 # DATAMODEL
 def p_command_datamodel(p):
-    '''command : CMD_DATAMODEL field_name field_name field_name args_list
-               | CMD_DATAMODEL field_name field_name CMD_SEARCH args_list
+    '''command : CMD_DATAMODEL field_name field_name args_list field_name args_list
+               | CMD_DATAMODEL field_name field_name field_name args_list
+               | CMD_DATAMODEL field_name field_name args_list field_name 
+               | CMD_DATAMODEL field_name args_list field_name args_list
                | CMD_DATAMODEL field_name field_name args_list
+               | CMD_DATAMODEL field_name args_list field_name 
                | CMD_DATAMODEL field_name args_list
                | CMD_DATAMODEL args_list
                | CMD_DATAMODEL field_name field_name field_name
-               | CMD_DATAMODEL field_name field_name CMD_SEARCH
                | CMD_DATAMODEL field_name field_name
                | CMD_DATAMODEL field_name
                | CMD_DATAMODEL'''
@@ -1196,6 +1199,40 @@ def p_command_eventstats(p):
                 p[0]["input"] += pp["input"]
     checkArgs(p,args)
 
+# EXTRACT
+def p_command_extract(p):
+    '''command : CMD_EXTRACT args_list value args_list
+               | CMD_EXTRACT value args_list
+               | CMD_EXTRACT args_list value
+               | CMD_EXTRACT args_list
+               | CMD_EXTRACT value
+               | CMD_EXTRACT'''
+    p[0] = {"type":"command","input":["_raw"],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "value":
+            p[0]["content"].append(pp["value"])
+    checkArgs(p,args)
+
+# HEAD
+def p_commend_head(p):
+    '''command : CMD_HEAD args_list expression args_list
+               | CMD_HEAD expression args_list
+               | CMD_HEAD args_list expression
+               | CMD_HEAD expression
+               | CMD_HEAD'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "expression":
+                p[0]["content"].append(pp["content"])
+    checkArgs(p,args)
+
 # REGEX
 def p_command_regex(p):
     '''command : CMD_REGEX field_name EQ STRING
@@ -1213,6 +1250,7 @@ def p_command_streamstats(p):
                | CMD_STREAMSTATS streamstats_args agg_terms_list streamstats_args BY_CLAUSE fields_list
                | CMD_STREAMSTATS streamstats_args agg_terms_list BY_CLAUSE fields_list
                | CMD_STREAMSTATS agg_terms_list BY_CLAUSE fields_list streamstats_args
+               | CMD_STREAMSTATS agg_terms_list BY_CLAUSE fields_list
                | CMD_STREAMSTATS agg_terms_list streamstats_args BY_CLAUSE fields_list
                | CMD_STREAMSTATS streamstats_args agg_terms_list streamstats_args
                | CMD_STREAMSTATS agg_terms_list streamstats_args
@@ -1247,6 +1285,37 @@ def p_command_streamstats_args_term(p):
         p[0]["args"] = p[1]["args"]
     else:
         p[0]["args"][p[1]] = "\"(\"{}\")\"".format(p[4]["content"])
+
+# TIMECHART
+def p_command_timechart_agg(p):
+    '''command : CMD_TIMECHART args_list agg_or_eval BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause args_list
+               | CMD_TIMECHART args_list agg_or_eval BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause
+               | CMD_TIMECHART args_list agg_or_eval BY_CLAUSE field_name args_list
+               | CMD_TIMECHART args_list agg_or_eval BY_CLAUSE field_name
+               | CMD_TIMECHART agg_or_eval BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause args_list
+               | CMD_TIMECHART agg_or_eval BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause
+               | CMD_TIMECHART agg_or_eval BY_CLAUSE field_name args_list
+               | CMD_TIMECHART agg_or_eval BY_CLAUSE field_name
+               | CMD_TIMECHART args_list agg_or_eval args_list
+               | CMD_TIMECHART args_list agg_or_eval
+               | CMD_TIMECHART agg_or_eval args_list
+               | CMD_TIMECHART agg_or_eval'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"replace","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "agg_or_eval":
+                p[0]["input"] += pp["input"]
+                p[0]["output"] += pp["output"]
+                p[0]["content"] += pp["content"]
+            elif pp["type"] == "field_name":
+                p[0]["input"].append(pp["field"])
+                p[0]["output"].append(pp["field"])
+    checkArgs(p,args)
+
+
 
 #--------------------
 # Generic args positioning
@@ -1342,7 +1411,8 @@ def p_agg_term(p):
 
 def p_agg_term_arg(p):
     '''agg_term_arg : eval_expr_fun_value
-                    | field_name'''
+                    | field_name
+                    | TIMES'''
     p[0] = {"type":"agg_term_arg","input":[""],"output":[]}
     if "type" in p[1]:
         if p[1]["type"] == "eval_expr_fun_value":
@@ -1353,7 +1423,16 @@ def p_agg_term_arg(p):
 def p_agg_or_eval_list(p):
     '''agg_or_eval_list : agg_terms_list
                         | eval_expr_fun'''
-    p[0] = {"type":"agg_or_eval_list","input":p[1]["input"],"output":p[1]["output"]}
+    p[0] = {"type":"agg_or_eval_list","input":p[1]["input"],"output":p[1]["output"],"content":[]}
+    if p[1]["type"] == "eval_expr_fun":
+        p[0]["content"].append(p[1]["content"])
+
+def p_agg_or_eval(p):
+    '''agg_or_eval : agg_term
+                   | eval_expr_fun'''
+    p[0] = {"type":"agg_or_eval","input":p[1]["input"],"output":p[1]["output"],"content":[]}
+    if p[1]["type"] == "eval_expr_fun":
+        p[0]["content"].append(p[1]["content"])
 
 #---------------------------
 # FIELDS
@@ -1437,7 +1516,8 @@ def p_args_term(p):
 def p_args_value(p):
     '''args_value : value
                   | eval_expr_fun_value
-                  | TIMES'''
+                  | TIMES
+                  | chart_limit'''
     p[0] = {"type":"args_value","value":""}
     if "type" in p[1]:
         if p[1]["type"] == "eval_expr_fun_value":
@@ -1446,6 +1526,11 @@ def p_args_value(p):
             p[0]["value"] = p[1]["value"]
     else:
         p[0]["value"] = p[1]
+
+def p_command_chart_limit(p):
+    '''chart_limit : BOTTOM_OP NUMBER
+                   | CMD_TOP NUMBER'''
+    p[0] = {"type":"chart_limit","content":["{} {}".format(p[1],p[2])]}
 
 #---------------------------
 # Values
