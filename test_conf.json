@@ -626,6 +626,91 @@
 			"exp_err":0,
 			"tags":["search","extract","valid","splunk_doc"]
 		},
+		"splunk_fieldformat_1": {
+			"search":"index=idx | table sourcetype totalCount | fieldformat totalCount=tostring(totalCount, \"commas\")",
+			"exp_err":0,
+			"tags":["search","fiedformat","valid","splunk_doc","table"]
+		},
+		"splunk_fieldformat_2": {
+			"search":"index=idx | fieldformat start_time = strftime(start_time, \"%H:%M:%S\")",
+			"exp_err":0,
+			"tags":["search","fiedformat","valid","splunk_doc"]
+		},
+		"splunk_fieldformat_3": {
+			"search":"index=idx | fieldformat totalSales=\"$\".tostring(totalSales,\"commas\")",
+			"exp_err":0,
+			"tags":["search","fiedformat","valid","splunk_doc"]
+		},
+		"splunk_fieldformat_4": {
+			"search":"index=idx | rename totalCount as Count firstTime as \"First Event\" lastTime as \"Last Event\" recentTime as \"Last Update\" | table sourcetype Count \"First Event\" \"Last Event\" \"Last Update\" | fieldformat Count=tostring(Count, \"commas\") | fieldformat \"First Event\"=strftime('First Event', \"%c\") | fieldformat \"Last Event\"=strftime('Last Event', \"%c\") | fieldformat \"Last Update\"=strftime('Last Update', \"%c\")",
+			"exp_err":0,
+			"tags":["search","fiedformat","valid","splunk_doc","rename","table"]
+		},
+		"splunk_fieldsummary_1": {
+			"search":"index=_internal earliest=-15m latest=now | fieldsummary",
+			"exp_err":0,
+			"tags":["search","fieldsummary","valid","splunk_doc"]
+		},
+		"splunk_fieldsummary_2": {
+			"search":"index=_internal earliest=-15m latest=now | fieldsummary maxvals=10 *size* *count*",
+			"exp_err":0,
+			"tags":["search","fieldsummary","valid","splunk_doc"]
+		},
+		"splunk_fielddown_1": {
+			"search":"index=idx | filldown",
+			"exp_err":0,
+			"tags":["search","fielddown","valid","splunk_doc"]
+		},
+		"splunk_fielddown_2": {
+			"search":"index=idx | filldown count",
+			"exp_err":0,
+			"tags":["search","fielddown","valid","splunk_doc"]
+		},
+		"splunk_fielddown_3": {
+			"search":"index=idx | filldown count score*",
+			"exp_err":0,
+			"tags":["search","fielddown","valid","splunk_doc"]
+		},
+		"splunk_findtypes_1": {
+			"search":"index=idx | findtypes",
+			"exp_err":0,
+			"tags":["search","findtypes","valid","splunk_doc"]
+		},
+		"splunk_findtypes_2": {
+			"search":"index=idx | findtypes max=50 useraw",
+			"exp_err":0,
+			"tags":["search","findtypes","valid","splunk_doc"]
+		},
+		"splunk_folderize_1": {
+			"search":"index=_internal | stats count(uri) by uri | folderize size=count(uri) attr=uri sep=\"/\"",
+			"exp_err":0,
+			"tags":["search","folderize","valid","splunk_doc"]
+		},
+		"splunk_foreach_1": {
+			"search":"|makeresults | eval total=0 | eval test1=1 | eval test2=2 | eval test3=3 | foreach test* [eval total=total + <<FIELD>>]",
+			"exp_err":0,
+			"tags":["makeresults","foreach","valid","splunk_doc","eval"]
+		},
+		"splunk_foreach_2": {
+			"search":"index=_internal source=*license_usage.log type!=\"*Summary\" earliest=-30d | timechart span=1d sum(b) AS daily_bytes by st | foreach * [eval <<FIELD>>='<<FIELD>>'/1024/1024/1024]",
+			"exp_err":0,
+			"tags":["search","foreach","valid","splunk_doc","timechart"]
+		},
+		"splunk_foreach_3": {
+			"search":"index=idx | foreach foo* [eval new_<<MATCHSTR>> = <<FIELD>> + bar<<MATCHSTR>>]",
+			"exp_err":0,
+			"tags":["search","foreach","valid","splunk_doc"]
+		},
+		"splunk_foreach_4": {
+			"search":"index=idx | foreach foo bar baz [eval <<FIELD>> = \"<<FIELD>>\"]",
+			"exp_err":0,
+			"tags":["search","foreach","valid","splunk_doc"]
+		},
+		"splunk_foreach_5": {
+			"search":"index=idx | foreach foo*bar* fieldstr=\"#field#\" matchseg2=\"#matchseg2#\" [eval \"#field#\" = \"#matchseg2#\"]",
+			"exp_err":0,
+			"tags":["search","foreach","valid","splunk_doc"]
+		},
 
 
 
@@ -658,6 +743,17 @@
 			"exp_err":0,
 			"tags":["makeresults","valid"]
 		},
+		"splunk_outlier_1": {
+			"search":"404 host=\"webserver\" | timechart avg(cpu_seconds) by host | outlier action=tf",
+			"exp_err":0,
+			"tags":["search","outlier","valid","splunk_doc","timechart"]
+		},
+		"splunk_outlier_2": {
+			"search":"index=idx | outlier",
+			"exp_err":0,
+			"tags":["search","outlier","valid","splunk_doc"]
+		},
+
 		"splunk_regex_1": {
 			"search":"index=idx | regex _raw=\"(?<!\\d)10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(?!\\d)\"",
 			"exp_err":0,

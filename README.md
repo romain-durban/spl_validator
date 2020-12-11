@@ -83,9 +83,14 @@ SPL commands specification is done in the `spl_commands.json` file
 | eventstats | all args | | |
 | expand | | | |
 | extract | all args | | |
+| fieldformat | | | |
 | fields | | | |
+| filldown | | | |
 | fillnull | all args | | |
+| findtypes | all args | | support the detection of an incorrect mode value |
 | flatten | | | |
+| folderize | all args | | |
+| foreach | all args | | Unsure about the syntax expected for the subsearch, for now considering only an eval is allowed |
 | head | | | |
 | inputlookup | all args and where | | |
 | lookup | all args | | |
@@ -98,7 +103,7 @@ SPL commands specification is done in the `spl_commands.json` file
 | sort | | | |
 | stats | first group of args | arg after group by | |
 | table | | | |
-| timechart | all args | | `agg` arg might not be properly handled since it is badly document, same for the commands with multiple aggregation terms |
+| timechart | all args | | `agg` arg might not be properly handled since it is badly documented, same for the commands with multiple aggregation terms |
 | top | all args | | |
 | transaction | all args | list of fields for arg mvlist because that is a nightmare to handle | |
 | where | | | |

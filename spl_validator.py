@@ -48,7 +48,7 @@ reserved = {
 
 tokens = [
     'DEQ','EQ','NEQ','PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'MOD', 'LPAREN','RPAREN','QLPAREN','QRPAREN','LBRACK','RBRACK','COMMA',
-    'NUMBER', 'FLOAT', 'QUOTE', 'COMP_OP', 'PIPE', 
+    'NUMBER', 'FLOAT', 'QUOTE', 'COMP_OP', 'PIPE', 'DOT',
     'MACRO',
     'NAME','STRING','PATTERN','TIMESPECIFIER','DATE'
 ] + list(set(reserved.values())) + list(set([cmd_conf[cmd]["token_name"] for cmd in cmd_conf]))
@@ -75,6 +75,7 @@ t_PIPE = r'\|'
 t_COMMA = r'\,'
 t_QUOTE = r'"'
 t_COMP_OP = r'(<=|>=|<|>)'
+t_DOT = r'\.'
 
 t_ignore = " \r\n\t"
 
@@ -97,11 +98,11 @@ def t_DATE(t):
 
 #Strings
 def t_PATTERN(t):
-    r'(\*[^\*\s]+\*|\*[a-zA-Z0-9_\.\{\}\-:]+|[a-zA-Z0-9_\.\{\}\-:]+\*)'
+    r'(\*[^\*\s]+\*|\*[a-zA-Z0-9_\.\{\}\-:<>]+|[a-zA-Z0-9_\.\{\}\-:<>]+\*)'
     return t
 
 def t_STRING(t):
-    r'"([^"]*\\"[^"]*\\"[^"]*|[^"]+)"'
+    r'("([^"]*\\"[^"]*\\"[^"]*|[^"]+)"|\'([^\']*\\\'[^"]*\\\'[^\']*|[^\']+)\')'
     t.value=t.value[1:-1]
     if t.value == "(":
         t.type = "QLPAREN"
@@ -110,7 +111,7 @@ def t_STRING(t):
     return t
 
 def t_NAME(t):
-    r'[a-zA-Z0-9_\{\}][a-zA-Z0-9_\.\{\}\-:]*'
+    r'([a-zA-Z0-9_\{\}]*<<[a-zA-Z0-9_\{\}]+>>[a-zA-Z0-9_\{\}]*|[a-zA-Z0-9_\{\}][a-zA-Z0-9_\.\{\}\-:]*)'
     global cmd_conf
     if t.value.lower() in cmd_conf:
         t.type = cmd_conf[t.value.lower()]["token_name"]    # Check for command names, lowercase
@@ -373,8 +374,7 @@ def p_expression_logic_factor(p):
     p[0] = {"type":"expression_logic_factor","content":s,"input":[],"output":[]}
 
 def p_expression_value(p):
-    '''expression_value : expr_fun LPAREN expression_fun_args RPAREN
-                        | expr_fun LPAREN RPAREN
+    '''expression_value : expr_fun_call
                         | value'''
     s=""
     for pp in p[1:]:
@@ -396,6 +396,7 @@ def p_expression_binop(p):
                         | expression_value EQ expression_value
                         | expression_value COMP_OP expression_value
                         | expression_value MOD expression_value
+                        | expression_value DOT expression_value
                         | LPAREN expression_value RPAREN'''
     s=""
     for pp in p[1:]:
@@ -406,6 +407,15 @@ def p_expression_binop(p):
     p[0] = {"type":"expression_value","content":s,"input":[],"output":[]}
 
 # ---
+def p_expression_fun_call(p):
+    '''expr_fun_call : expr_fun LPAREN expression_fun_args RPAREN
+                     | expr_fun LPAREN RPAREN'''
+    p[0] = {"type":"expr_fun_call","content":[],"input":[],"output":[],"function":p[1]["content"]}
+    if len(p) == 5:
+        p[0]["content"]="{}({})".format(p[1]["content"],p[3]["content"])
+    else:
+        p[0]["content"]="{}()".format(p[1]["content"])
+
 
 def p_expression_fun(p):
     '''expr_fun : NAME
@@ -506,13 +516,20 @@ def p_commands_names(p):
                       | CMD_EVENTSTATS
                       | CMD_EXPAND
                       | CMD_EXTRACT
+                      | CMD_FIELDFORMAT
                       | CMD_FIELDS
+                      | CMD_FIELDSUMMARY
+                      | CMD_FILLDOWN
                       | CMD_FILLNULL
+                      | CMD_FINDTYPES
                       | CMD_FLATTEN
+                      | CMD_FOLDERIZE
+                      | CMD_FOREACH
                       | CMD_HEAD
                       | CMD_INPUTLOOKUP
                       | CMD_LOOKUP
                       | CMD_MAKERESULTS
+                      | CMD_OUTLIER
                       | CMD_OUTPUTLOOKUP
                       | CMD_REGEX
                       | CMD_RENAME
@@ -706,7 +723,10 @@ def p_command_basic_no_field(p):
                | CMD_DELETE
                | CMD_DIFF
                | CMD_EVENTCOUNT
-               | CMD_MAKERESULTS'''
+               | CMD_MAKERESULTS
+               | CMD_FIELDSUMMARY
+               | CMD_FILLDOWN
+               | CMD_OUTLIER'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -737,6 +757,7 @@ def p_command_basic_only_args(p):
                | CMD_DBINSPECT args_list
                | CMD_DIFF args_list
                | CMD_EVENTCOUNT args_list
+               | CMD_FOLDERIZE args_list
                | CMD_MAKERESULTS args_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     checkArgs(p,p[2]["args"])
@@ -744,7 +765,8 @@ def p_command_basic_only_args(p):
 
 # BASIC ONLY FIELDS
 def p_command_basic_only_fields(p):
-    '''command : CMD_TABLE fields_list'''
+    '''command : CMD_TABLE fields_list
+               | CMD_FILLDOWN fields_list'''
     p[0] = {"type":"command","input":p[2]["input"],"output":[],"fields-effect":"none"}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -757,7 +779,9 @@ def p_command_basic_args_and_fields(p):
                | CMD_ANOMALYDETECTION command_params_fields_or_args
                | CMD_ARULES command_params_fields_or_args
                | CMD_ASSOCIATE command_params_fields_or_args
-               | CMD_TRANSACTION command_params_fields_or_args'''
+               | CMD_TRANSACTION command_params_fields_or_args
+               | CMD_FIELDSUMMARY command_params_fields_or_args
+               | CMD_OUTLIER command_params_fields_or_args'''
     p[0] = {"type":"command","input":p[2]["fields"],"output":[],"fields-effect":"none"}
     checkArgs(p,p[2]["args"])
     p[0] = commands_args_and_fields_output_update(p,p[2]["args"])
@@ -807,6 +831,9 @@ def commands_args_and_fields_output_update(p,args):
         out["output"] = cmd_conf[p[1]]["created_fields"]["default"]
         if "annotate" in args and args["annotate"] in ["t","true","TRUE","True"]:
             out["output"] = cmd_conf[p[1]]["created_fields"]["annotate"]
+    elif p[1] == "fieldsummary":
+        out["fields-effect"] = "replace"
+        out["output"] = cmd_conf[p[1]]["created_fields"]
 
     return out
 
@@ -1216,6 +1243,58 @@ def p_command_extract(p):
             p[0]["content"].append(pp["value"])
     checkArgs(p,args)
 
+# FIELDFORMAT
+def p_command_fieldformat(p):
+    'command : CMD_FIELDFORMAT field_name EQ expression_value'
+    p[0] = {"type":"command","input":[p[2]["field"]],"output":[],"fields-effect":"none","content":[p[4]["content"]]}
+
+# FINDTYPES
+def p_command_findtypes(p):
+    '''command : CMD_FINDTYPES args_term field_name field_name
+               | CMD_FINDTYPES args_term field_name
+               | CMD_FINDTYPES args_term
+               | CMD_FINDTYPES'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if pp["type"] == "args_term":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "field_name":
+            arg=pp["field"]
+            if not arg in cmd_conf[p[1]]["modes"]:
+                report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["modes"])),None,value=arg)
+    checkArgs(p,args)
+
+# FOREACH
+def p_command_foreach(p):
+    '''command : CMD_FOREACH args_list fields_list args_list subsearch_foreach
+               | CMD_FOREACH fields_list args_list subsearch_foreach
+               | CMD_FOREACH args_list fields_list subsearch_foreach
+               | CMD_FOREACH fields_list subsearch_foreach
+               | CMD_FOREACH args_list TIMES args_list subsearch_foreach
+               | CMD_FOREACH TIMES args_list subsearch_foreach
+               | CMD_FOREACH args_list TIMES subsearch_foreach
+               | CMD_FOREACH TIMES subsearch_foreach'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "fields_list":
+                p[0]["input"] += pp["input"]
+                p[0]["output"] += pp["output"]
+            elif pp["type"] == "subsearch_foreach":
+                p[0]["input"] += pp["input"]
+                p[0]["content"] += pp["content"]
+        else:
+            p[0]["input"].append(pp)
+    checkArgs(p,args)
+
+def p_command_foreach_subsearch(p):
+    '''subsearch_foreach : LBRACK CMD_EVAL eval_expr_assign RBRACK'''
+    p[0] = {"type":"subsearch_foreach","input":p[3]["input"],"output":p[3]["output"],"fields-effect":"none","content":p[3]["content"]}
+
 # HEAD
 def p_commend_head(p):
     '''command : CMD_HEAD args_list expression args_list
@@ -1288,25 +1367,25 @@ def p_command_streamstats_args_term(p):
 
 # TIMECHART
 def p_command_timechart_agg(p):
-    '''command : CMD_TIMECHART args_list agg_or_eval BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause args_list
-               | CMD_TIMECHART args_list agg_or_eval BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause
-               | CMD_TIMECHART args_list agg_or_eval BY_CLAUSE field_name args_list
-               | CMD_TIMECHART args_list agg_or_eval BY_CLAUSE field_name
-               | CMD_TIMECHART agg_or_eval BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause args_list
-               | CMD_TIMECHART agg_or_eval BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause
-               | CMD_TIMECHART agg_or_eval BY_CLAUSE field_name args_list
-               | CMD_TIMECHART agg_or_eval BY_CLAUSE field_name
-               | CMD_TIMECHART args_list agg_or_eval args_list
-               | CMD_TIMECHART args_list agg_or_eval
-               | CMD_TIMECHART agg_or_eval args_list
-               | CMD_TIMECHART agg_or_eval'''
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"replace","content":[]}
+    '''command : CMD_TIMECHART args_list agg_or_eval_list BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause args_list
+               | CMD_TIMECHART args_list agg_or_eval_list BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause
+               | CMD_TIMECHART args_list agg_or_eval_list BY_CLAUSE field_name args_list
+               | CMD_TIMECHART args_list agg_or_eval_list BY_CLAUSE field_name
+               | CMD_TIMECHART agg_or_eval_list BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause args_list
+               | CMD_TIMECHART agg_or_eval_list BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause
+               | CMD_TIMECHART agg_or_eval_list BY_CLAUSE field_name args_list
+               | CMD_TIMECHART agg_or_eval_list BY_CLAUSE field_name
+               | CMD_TIMECHART args_list agg_terms_list args_list
+               | CMD_TIMECHART args_list agg_terms_list
+               | CMD_TIMECHART agg_terms_list args_list
+               | CMD_TIMECHART agg_terms_list'''
+    p[0] = {"type":"command","input":[],"output":["_time"],"fields-effect":"replace","content":[]}
     args={}
     for pp in p[2:]:
         if isinstance(pp,dict):
             if pp["type"] == "args_list":
                 extendDict(args,pp["args"])
-            elif pp["type"] == "agg_or_eval":
+            elif pp["type"] == "agg_or_eval_list":
                 p[0]["input"] += pp["input"]
                 p[0]["output"] += pp["output"]
                 p[0]["content"] += pp["content"]
@@ -1516,6 +1595,7 @@ def p_args_term(p):
 def p_args_value(p):
     '''args_value : value
                   | eval_expr_fun_value
+                  | expr_fun_call
                   | TIMES
                   | chart_limit'''
     p[0] = {"type":"args_value","value":""}
@@ -1567,6 +1647,10 @@ def p_value_time(p):
 def p_value_date(p):
     'value : DATE'
     p[0] = {"type":"value","value":str(p[1])}
+
+def p_value_minus(p):
+    'value : MINUS NAME'
+    p[0] = {"type":"value","value":"-{}".format(str(p[2]))}
 
 def p_values_list(p):
     '''values_list : values_list COMMA value

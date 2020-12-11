@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='index=idx | timechart avg(field) BY mvfield dedup_splitval=true'
+s='index=idx | foreach foo*bar* fieldstr=\"#field#\" matchseg2=\"#matchseg2#\" [eval "#field#" = \"#matchseg2#\"]'
 print(s)
 
 spl_validator.analyze(s,verbose=True)
