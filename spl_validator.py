@@ -48,7 +48,7 @@ reserved = {
 
 tokens = [
     'DEQ','EQ','NEQ','PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'MOD', 'LPAREN','RPAREN','QLPAREN','QRPAREN','LBRACK','RBRACK','COMMA',
-    'NUMBER', 'FLOAT', 'QUOTE', 'COMP_OP', 'PIPE', 'DOT',
+    'NUMBER', 'FLOAT', 'QUOTE', 'COMP_OP', 'PIPE', 'DOT', 'COLON',
     'MACRO',
     'NAME','STRING','PATTERN','TIMESPECIFIER','DATE'
 ] + list(set(reserved.values())) + list(set([cmd_conf[cmd]["token_name"] for cmd in cmd_conf]))
@@ -76,6 +76,7 @@ t_COMMA = r'\,'
 t_QUOTE = r'"'
 t_COMP_OP = r'(<=|>=|<|>)'
 t_DOT = r'\.'
+t_COLON = r':'
 
 t_ignore = " \r\n\t"
 
@@ -162,8 +163,8 @@ def p_mainsearch(p):
     p[0]["type"] = "mainsearch"
 
 def p_search_exp(p):
-    '''search_exp : filters_invok
-              | filters_invok PIPE commands
+    '''search_exp : filters
+              | filters PIPE commands
               | PIPE commands'''
     global scope_level, params, data
     flt,cmd=None,None
@@ -198,9 +199,9 @@ def p_search_exp(p):
 
 
 def p_subsearch(p):
-    '''subsearch : LBRACK new_scope search_exp RBRACK'''
+    '''subsearch : LBRACK new_scope commands RBRACK'''
     global scope_level
-    p[0] = {"type":"subsearch","input":p[3]["input"],"output":p[3]["output"]}
+    p[0] = {"type":"subsearch","input":p[3]["input"],"output":p[3]["output"],"content":p[3]["content"]}
     scope_level = scope_level -1
 
 def p_new_scope(p):
@@ -215,20 +216,6 @@ def p_subpipeline(p):
 #---------------------------
 # FILTERS
 #---------------------------
-def p_filters_invok(p):
-    '''filters_invok : CMD_SEARCH filters
-                     | filters'''
-    global scope_level
-    p[0] = {"type":"filters_invok","input":p[len(p)-1]["input"],"output":p[len(p)-1]["output"],"content":p[len(p)-1]["content"],"op":p[len(p)-1]["op"]}
-    if len(p) == 3:
-        if scope_level == 0:
-            #Unecessary CMD_SEARCH in mainsearch context
-            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected SEARCH in the beginning of the main search",None)
-    else:
-        if scope_level > 0:
-            #Missing CMD_SEARCH in subsearch context
-            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Missing SEARCH in the beginning of the subsearch",None)
-
 def p_filters(p):
     '''filters : filter filters
                | filter'''
@@ -525,9 +512,13 @@ def p_commands_names(p):
                       | CMD_FLATTEN
                       | CMD_FOLDERIZE
                       | CMD_FOREACH
+                      | CMD_FORMAT
+                      | CMD_FROM
+                      | CMD_GAUGE
                       | CMD_HEAD
                       | CMD_INPUTLOOKUP
                       | CMD_LOOKUP
+                      | CMD_MAKEMV
                       | CMD_MAKERESULTS
                       | CMD_OUTLIER
                       | CMD_OUTPUTLOOKUP
@@ -1295,6 +1286,49 @@ def p_command_foreach_subsearch(p):
     '''subsearch_foreach : LBRACK CMD_EVAL eval_expr_assign RBRACK'''
     p[0] = {"type":"subsearch_foreach","input":p[3]["input"],"output":p[3]["output"],"fields-effect":"none","content":p[3]["content"]}
 
+# FORMAT
+def p_command_format(p):
+    '''command : CMD_FORMAT args_list STRING STRING STRING STRING STRING STRING args_list
+               | CMD_FORMAT STRING STRING STRING STRING STRING STRING args_list
+               | CMD_FORMAT args_list STRING STRING STRING STRING STRING STRING
+               | CMD_FORMAT STRING STRING STRING STRING STRING STRING
+               | CMD_FORMAT args_list
+               | CMD_FORMAT'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+        else:
+            p[0]["content"].append(pp)
+    checkArgs(p,args)
+
+# FROM
+def p_command_from(p):
+    '''command : CMD_FROM field_name COLON field_name
+               | CMD_FROM field_name field_name
+               | CMD_FROM field_name'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"generate","content":[]}
+    if len(p) > 3:
+        p[0]["input"].append("{}:{}".format(p[2]["field"],p[len(p)-1]["field"]))
+    else:
+        arg=p[2]["field"]
+        if not ":" in arg:
+            report_error(p.lexpos(1),p.lexspan(2)[0]+len(arg),"Malformated dataset information '{}' in {}, expected <dataset_type>:<dataset_name>".format(arg,p[1]),None,value=arg)
+        else:
+            p[0]["input"].append(arg)
+
+#GAUGE
+def p_command_gauge(p):
+    'command : CMD_GAUGE field_or_num_list'
+    p[0] = {"type":"command","input":p[2]["input"],"output":["x"],"fields-effect":"replace","content":[]}
+    if len(p[2]["values"]) > 1:
+        for i in range(1,len(p[2]["values"])):  # adding y1, y2 depending on the number of range values
+            p[0]["output"].append("y{}".format(i))
+    else:
+        p[0]["output"] += ["y1","y2"] #default 2 values, range = 0 to 100
+
 # HEAD
 def p_commend_head(p):
     '''command : CMD_HEAD args_list expression args_list
@@ -1311,6 +1345,23 @@ def p_commend_head(p):
             elif pp["type"] == "expression":
                 p[0]["content"].append(pp["content"])
     checkArgs(p,args)
+
+# MAKEMV
+def p_command_makemv(p):
+    '''command : CMD_MAKEMV args_list field_name args_list
+               | CMD_MAKEMV args_list field_name
+               | CMD_MAKEMV field_name args_list
+               | CMD_MAKEMV field_name'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "field_name":
+                p[0]["input"].append(pp["field"])
+    checkArgs(p,args)
+
 
 # REGEX
 def p_command_regex(p):
@@ -1571,6 +1622,28 @@ def p_field_name_agg_fun(p):
                   | commands_names LPAREN field_name RPAREN'''
     # Case when a field has been named after the use of an agregation function
     p[0] = {"type":"field_name","field":["{}({})".format(p[1],p[3]["field"])]}
+
+def p_field_or_num_list(p):
+    '''field_or_num_list : field_or_num_list field_or_num
+                         | field_or_num'''
+    p[0] = {"type":"field_or_num_list","values":[p[len(p)-1]["value"]],"input":[p[len(p)-1]["field"]],"output":[]}
+    if len(p) > 2:
+        p[0]["values"] = p[1]["values"] + p[0]["values"]
+        p[0]["input"] = p[1]["input"] + p[0]["input"]
+
+def p_field_or_num(p):
+    '''field_or_num : field_name
+                    | NUMBER
+                    | MINUS NUMBER'''
+    p[0] = {"type":"field_or_num","value":"","field":""}
+    if isinstance(p[1],dict):
+        p[0]["value"] = p[1]["field"]
+        p[0]["field"] = p[1]["field"]
+    else:
+        if len(p) > 2:
+            p[0]["value"] = "-{}".format(p[1])
+        else:
+            p[0]["value"] = p[1]
 
 #---------------------------
 # Args

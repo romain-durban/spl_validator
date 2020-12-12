@@ -91,9 +91,13 @@ SPL commands specification is done in the `spl_commands.json` file
 | flatten | | | |
 | folderize | all args | | |
 | foreach | all args | | Unsure about the syntax expected for the subsearch, for now considering only an eval is allowed |
+| format | all args | | |
+| from | | | Checks usage of colon in dataset reference |
+| gauge | | | Also giving the list of fields created |
 | head | | | |
 | inputlookup | all args and where | | |
 | lookup | all args | | |
+| makemv | all args | | |
 | makeresults | all args | | also giving the list of fields created even with annotate set to true |
 | outputlookup | all args | | |
 | regex | all args | | |

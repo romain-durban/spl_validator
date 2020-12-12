@@ -711,6 +711,51 @@
 			"exp_err":0,
 			"tags":["search","foreach","valid","splunk_doc"]
 		},
+		"splunk_format_1": {
+			"search":"index=idx | head 2 | fields source, sourcetype, host | format",
+			"exp_err":0,
+			"tags":["search","format","valid","splunk_doc","head","findtypes"]
+		},
+		"splunk_format_2": {
+			"search":"index=idx | format \"[\" \"[\" \"&&\" \"]\" \"||\" \"]\"",
+			"exp_err":0,
+			"tags":["search","format","valid","splunk_doc"]
+		},
+		"splunk_format_3": {
+			"search":"index=_internal |head 1 |eval foo=\"eventtype,log_level\" | makemv delim=\",\" foo | fields foo | format mvsep=\"mvseparator\" \"{\" \"[\" \"AND\" \"]\" \"AND\" \"}\"",
+			"exp_err":0,
+			"tags":["search","format","valid","splunk_doc","head","eval","makemv","fields"]
+		},
+		"splunk_from_1": {
+			"search":"| from datamodel:internal_server.splunkdaccess",
+			"exp_err":0,
+			"tags":["from","valid","splunk_doc"]
+		},
+		"splunk_from_2": {
+			"search":"| from lookup geo_attr_countries.csv",
+			"exp_err":0,
+			"tags":["from","valid","splunk_doc"]
+		},
+		"splunk_from_3": {
+			"search":"| from lookup:kvstorecoll_lookup | where (CustID>500) AND (CustName=\"P*\") | stats count",
+			"exp_err":0,
+			"tags":["from","valid","splunk_doc","where","stats"]
+		},
+		"splunk_from_4": {
+			"search":"| from savedsearch:mysecurityquery | fields _time clientip",
+			"exp_err":0,
+			"tags":["from","valid","splunk_doc","fields"]
+		},
+		"splunk_from_5": {
+			"search":"| from savedsearch \"Top five sourcetypes\"",
+			"exp_err":0,
+			"tags":["from","valid","splunk_doc"]
+		},
+		"splunk_gauge_1": {
+			"search":"index=_internal | stats count as myCount | gauge myCount 750 1000 1250 1500",
+			"exp_err":0,
+			"tags":["search","gauge","valid","splunk_doc","stats"]
+		},
 
 
 
@@ -733,6 +778,23 @@
 		},
 
 
+
+
+		"splunk_makemv_1": {
+			"search":"eventtype=\"sendmail\" | makemv delim=\",\" senders | top senders",
+			"exp_err":0,
+			"tags":["search","makemv","valid","splunk_doc","top"]
+		},
+		"splunk_makemv_2": {
+			"search":"index=idx | makemv delim=\":\" allowempty=true foo",
+			"exp_err":0,
+			"tags":["search","makemv","valid","splunk_doc"]
+		},
+		"splunk_makemv_3": {
+			"search":"| makeresults | eval my_multival=\"one,two,three\" | makemv tokenizer=\"([^,]+),?\" my_multival",
+			"exp_err":0,
+			"tags":["makeresults","makemv","valid","splunk_doc","eval"]
+		},
 		"splunk_makeresults_1": {
 			"search":"| makeresults | eval newfield=\"some value\"",
 			"exp_err":0,
