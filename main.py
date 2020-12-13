@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='index=_internal | stats count as myCount | gauge myCount'
+s='| outputcsv [stats count | eval search=strftime(now(), \"mysearch-%y%m%d-%H%M%S.csv\")]'
 print(s)
 
 spl_validator.analyze(s,verbose=True)

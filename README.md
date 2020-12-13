@@ -94,11 +94,20 @@ SPL commands specification is done in the `spl_commands.json` file
 | format | all args | | |
 | from | | | Checks usage of colon in dataset reference |
 | gauge | | | Also giving the list of fields created |
-| head | | | |
+| gentimes | all args | | |
+| geom | all args | | |
+| geomfilter | all args | | |
+| geostats | all args | | |
+| head | all args | | |
+| highlight | | | |
+| history | all args | | also giving the list of fields created according to the value of the arg |
+| iconify | | | |
+| inputcsv | all args and where | | |
 | inputlookup | all args and where | | |
 | lookup | all args | | |
 | makemv | all args | | |
 | makeresults | all args | | also giving the list of fields created even with annotate set to true |
+| outputcsv | all args | | |
 | outputlookup | all args | | |
 | regex | all args | | |
 | rename | | | |

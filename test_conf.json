@@ -756,6 +756,146 @@
 			"exp_err":0,
 			"tags":["search","gauge","valid","splunk_doc","stats"]
 		},
+		"splunk_gentimes_1": {
+			"search":"| gentimes start=4/1/18 end=4/5/18",
+			"exp_err":0,
+			"tags":["gentimes","valid","splunk_doc"]
+		},
+		"splunk_gentimes_2": {
+			"search":"| gentimes start=-30 end=-27",
+			"exp_err":0,
+			"tags":["gentimes","valid","splunk_doc"]
+		},
+		"splunk_gentimes_3": {
+			"search":"| gentimes start=12/1/17 end=12/5/17 increment=1h",
+			"exp_err":0,
+			"tags":["gentimes","valid","splunk_doc"]
+		},
+		"splunk_gentimes_4": {
+			"search":"| gentimes start=9/25/17",
+			"exp_err":0,
+			"tags":["gentimes","valid","splunk_doc"]
+		},
+		"splunk_gentimes_5": {
+			"search":"| gentimes start=12/1/17 end=4/30/18 increment=7d",
+			"exp_err":0,
+			"tags":["gentimes","valid","splunk_doc"]
+		},
+		"splunk_geom_1": {
+			"search":"index=idx | stats count | eval featureId=\"California\" | eval count=10000 | geom geo_us_states allFeatures=true",
+			"exp_err":0,
+			"tags":["search","geom","valid","splunk_doc","stats","eval"]
+		},
+		"splunk_geom_2": {
+			"search":"index=idx | geom",
+			"exp_err":0,
+			"tags":["search","geom","valid","splunk_doc"]
+		},
+		"splunk_geom_3": {
+			"search":"index=idx | geom geo_us_states",
+			"exp_err":0,
+			"tags":["search","geom","valid","splunk_doc"]
+		},
+		"splunk_geom_4": {
+			"search":"index=idx | geom geo_us_states featureIdField=\"state\"",
+			"exp_err":0,
+			"tags":["search","geom","valid","splunk_doc"]
+		},
+		"splunk_geom_5": {
+			"search":"index=idx | geom geo_us_states allFeatures=true",
+			"exp_err":0,
+			"tags":["search","geom","valid","splunk_doc"]
+		},
+		"splunk_geom_6": {
+			"search":"index=idx | lookup geo_countries latitude AS lat, longitude AS long | stats count BY featureIdField | geom geo_countries featureIdField=\"country\"",
+			"exp_err":0,
+			"tags":["search","geom","valid","splunk_doc","lookup","stats"]
+		},
+		"splunk_geom_7": {
+			"search":"index=idx | geom geo_us_states featureIdField=\"state\" gen=0.1 min_x=-130.5 min_y=37.6 max_x=-130.1 max_y=37.7",
+			"exp_err":0,
+			"tags":["search","geom","valid","splunk_doc","stats","eval"]
+		},
+		"splunk_geomfilter_1": {
+			"search":"index=idx | geomfilter",
+			"exp_err":0,
+			"tags":["search","geomfilter","valid","splunk_doc"]
+		},
+		"splunk_geomfilter_2": {
+			"search":"index=idx | geomfilter min_x=-90 min_y=-90 max_x=90 max_y=90",
+			"exp_err":0,
+			"tags":["search","geomfilter","valid","splunk_doc"]
+		},
+		"splunk_geostats_1": {
+			"search":"index=idx | geostats count",
+			"exp_err":0,
+			"tags":["search","geostats","valid","splunk_doc"]
+		},
+		"splunk_geostats_2": {
+			"search":"index=idx | geostats latfield=eventlat longfield=eventlong avg(rating) by gender",
+			"exp_err":0,
+			"tags":["search","geostats","valid","splunk_doc"]
+		},
+		"splunk_geostats_3": {
+			"search":"sourcetype=vendor_sales | stats count by Code VendorID | lookup prices_lookup Code OUTPUTNEW product_name | table product_name VendorID | lookup vendors_lookup VendorID | geostats latfield=VendorLatitude longfield=VendorLongitude count by product_name",
+			"exp_err":0,
+			"tags":["search","geostats","valid","splunk_doc","stats","table","lookup"]
+		},
+		"splunk_highlight_1": {
+			"search":"index=idx | highlight login,logout",
+			"exp_err":0,
+			"tags":["search","highlight","valid","splunk_doc"]
+		},
+		"splunk_highlight_2": {
+			"search":"index=idx | highlight \"access denied\"",
+			"exp_err":0,
+			"tags":["search","highlight","valid","splunk_doc"]
+		},
+		"splunk_history_1": {
+			"search":"| history",
+			"exp_err":0,
+			"tags":["history","valid","splunk_doc"]
+		},
+		"splunk_history_2": {
+			"search":"| history events=true",
+			"exp_err":0,
+			"tags":["history","valid","splunk_doc"]
+		},
+		"splunk_iconify_1": {
+			"search":"index=idx | iconify eventtype",
+			"exp_err":0,
+			"tags":["search","iconify","valid","splunk_doc"]
+		},
+		"splunk_iconify_2": {
+			"search":"index=idx | iconify clientip method",
+			"exp_err":0,
+			"tags":["search","iconify","valid","splunk_doc"]
+		},
+		"splunk_inputcsv_1": {
+			"search":"| inputcsv all.csv | search error | outputcsv errors.csv",
+			"exp_err":0,
+			"tags":["inputcsv","valid","splunk_doc","search","outputcsv"]
+		},
+		"splunk_inputcsv_2": {
+			"search":"| inputcsv start=100 max=500 bar",
+			"exp_err":0,
+			"tags":["inputcsv","valid","splunk_doc"]
+		},
+		"splunk_inputcsv_3": {
+			"search":"| inputcsv students.csv WHERE (age>=13 age<=19) AND NOT age=16 | stats count",
+			"exp_err":0,
+			"tags":["inputcsv","valid","splunk_doc","stats"]
+		},
+		"splunk_inputcsv_4": {
+			"search":"error earliest=-d@d | inputcsv append=true all_errors.csv | outputcsv all_errors.csv",
+			"exp_err":0,
+			"tags":["search","inputcsv","valid","splunk_doc","search","outputcsv"]
+		},
+		"splunk_inputcsv_5": {
+			"search":"| inputcsv file1.csv | eval source=\"file1\" | append [inputcsv file2.csv | eval source=\"file2\"]",
+			"exp_err":0,
+			"tags":["inputcsv","valid","splunk_doc","search","eval","append","subsearch"]
+		},
 
 
 
@@ -814,6 +954,26 @@
 			"search":"index=idx | outlier",
 			"exp_err":0,
 			"tags":["search","outlier","valid","splunk_doc"]
+		},
+		"splunk_outputcsv_1": {
+			"search":"index=idx | outputcsv mysearch",
+			"exp_err":0,
+			"tags":["search","outputcsv","valid","splunk_doc"]
+		},
+		"splunk_outputcsv_2": {
+			"search":"| outputcsv [stats count | eval search=strftime(now(), \"mysearch-%y%m%d-%H%M%S.csv\")]",
+			"exp_err":0,
+			"tags":["search","outputcsv","valid","splunk_doc","subsearch","stats","eval"]
+		},
+		"splunk_outputcsv_3": {
+			"search":"index=_internal sourcetype=\"splunkd\" | head 5 | fields _raw _time | fields - _indextime _sourcetype _subsecond _serial | outputcsv MyTestCsvfile",
+			"exp_err":0,
+			"tags":["search","outputcsv","valid","splunk_doc","head","fields"]
+		},
+		"splunk_outputcsv_4": {
+			"search":"index=idx | outputcsv mysearch.csv override_if_empty=false",
+			"exp_err":0,
+			"tags":["search","outputcsv","valid","splunk_doc"]
 		},
 
 		"splunk_regex_1": {

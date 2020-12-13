@@ -94,7 +94,7 @@ def t_TIMESPECIFIER(t):
     return t
 
 def t_DATE(t):
-    r'\d+/\d+/\d+:\d+:\d+:\d+'
+    r'\d+/\d+/\d+(:\d+:\d+:\d+)?'
     return t
 
 #Strings
@@ -235,7 +235,7 @@ def p_filters_logic_exp(p):
     '''filters_logic_exp : filters_logic_exp OR_OP filters_logic_term
                          | filters_logic_term'''
     if len(p) == 4:
-        p[0] = {"type":"filters_logic_exp","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["output"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
+        p[0] = {"type":"filters_logic_exp","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
     else:
         p[0] = {"type":"filters_logic_exp","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
 
@@ -244,9 +244,9 @@ def p_filters_logic_term(p):
                           | filters_logic_term filters_logic_factor
                           | filters_logic_factor'''
     if len(p) == 4:
-        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["output"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
     elif len(p) == 3:
-        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"],"content":p[1]["content"]+p[2]["output"],"op":p[1]["op"] + ["and"] + p[2]["op"]}
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"],"content":p[1]["content"]+p[2]["content"],"op":p[1]["op"] + ["and"] + p[2]["op"]}
     else:
         p[0] = {"type":"filters_logic_term","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
 
@@ -334,18 +334,19 @@ def p_expression_logic_exp(p):
         if isinstance(pp,dict) and "content" in pp:
             s += pp["content"]
         else:
-            s += pp
+            s += " "+pp
     p[0] = {"type":"expression_logic_exp","content":s,"input":[],"output":[]}
 
 def p_expression_logic_term(p):
     '''expression_logic_term : expression_logic_factor AND_OP expression_logic_term
+                             | expression_logic_factor expression_logic_term
                              | expression_logic_factor'''
-    s=""
+    s=" "
     for pp in p[1:]:
         if isinstance(pp,dict) and "content" in pp:
             s += pp["content"]
         else:
-            s += pp
+            s += " "+pp
     p[0] = {"type":"expression_logic_term","content":s,"input":[],"output":[]}
 
 def p_expression_logic_factor(p):
@@ -357,6 +358,8 @@ def p_expression_logic_factor(p):
         if isinstance(pp,dict) and "content" in pp:
             s += pp["content"]
         else:
+            if pp == "not":
+                s += " "
             s += pp
     p[0] = {"type":"expression_logic_factor","content":s,"input":[],"output":[]}
 
@@ -515,12 +518,21 @@ def p_commands_names(p):
                       | CMD_FORMAT
                       | CMD_FROM
                       | CMD_GAUGE
+                      | CMD_GENTIMES
+                      | CMD_GEOM
+                      | CMD_GEOMFILTER
+                      | CMD_GEOSTATS
                       | CMD_HEAD
+                      | CMD_HIGHLIGHT
+                      | CMD_HISTORY
+                      | CMD_ICONIFY
+                      | CMD_INPUTCSV
                       | CMD_INPUTLOOKUP
                       | CMD_LOOKUP
                       | CMD_MAKEMV
                       | CMD_MAKERESULTS
                       | CMD_OUTLIER
+                      | CMD_OUTPUTCSV
                       | CMD_OUTPUTLOOKUP
                       | CMD_REGEX
                       | CMD_RENAME
@@ -713,10 +725,12 @@ def p_command_basic_no_field(p):
                | CMD_DBINSPECT
                | CMD_DELETE
                | CMD_DIFF
-               | CMD_EVENTCOUNT
-               | CMD_MAKERESULTS
                | CMD_FIELDSUMMARY
                | CMD_FILLDOWN
+               | CMD_GEOMFILTER
+               | CMD_HISTORY
+               | CMD_EVENTCOUNT
+               | CMD_MAKERESULTS
                | CMD_OUTLIER'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     p[0] = commands_args_and_fields_output_update(p,[])
@@ -731,12 +745,11 @@ def p_command_basic_single_field(p):
 def p_command_basic_single_arg(p):
     '''command : CMD_ANALYSEFIELDS args_term
                | CMD_APPENDPIPE args_term
-               | CMD_CEFOUT args_term'''
+               | CMD_CEFOUT args_term
+               | CMD_HISTORY args_term'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
-    if p[1] in ["af","analyzefields"]:
-        p[0] = {"type":"command","input":p[2]["args"].values(),"output":cmd_conf[p[1]]["created_fields"],"fields-effect":"replace"}
-    else: 
-        p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+    p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
 
 # BASIC ONLY ARGS COMMAND
 def p_command_basic_only_args(p):
@@ -749,6 +762,8 @@ def p_command_basic_only_args(p):
                | CMD_DIFF args_list
                | CMD_EVENTCOUNT args_list
                | CMD_FOLDERIZE args_list
+               | CMD_GENTIMES args_list
+               | CMD_GEOMFILTER args_list
                | CMD_MAKERESULTS args_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
     checkArgs(p,p[2]["args"])
@@ -757,7 +772,9 @@ def p_command_basic_only_args(p):
 # BASIC ONLY FIELDS
 def p_command_basic_only_fields(p):
     '''command : CMD_TABLE fields_list
-               | CMD_FILLDOWN fields_list'''
+               | CMD_FILLDOWN fields_list
+               | CMD_HIGHLIGHT fields_list
+               | CMD_ICONIFY fields_list'''
     p[0] = {"type":"command","input":p[2]["input"],"output":[],"fields-effect":"none"}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -791,6 +808,10 @@ def commands_args_and_fields_output_update(p,args):
                 out["fields-effect"]="replace"
         else:
             out["output"] = cmd_conf[p[1]]["created_fields"]["annotate_filter"]
+    elif p[1] in ["af","analyzefields"]:
+        out["input"] = p[2]["args"].values()
+        out["output"] = cmd_conf[p[1]]["created_fields"]
+        out["fields-effect"] = "replace"
     elif p[1] == "associate":
         out["output"] = cmd_conf[p[1]]["created_fields"]
         out["fields-effect"] = "replace"
@@ -825,7 +846,18 @@ def commands_args_and_fields_output_update(p,args):
     elif p[1] == "fieldsummary":
         out["fields-effect"] = "replace"
         out["output"] = cmd_conf[p[1]]["created_fields"]
-
+    elif p[1] == "gentimes":
+        out["fields-effect"] = "generate"
+        out["output"] = cmd_conf[p[1]]["created_fields"]
+    elif p[1] == "highlight":
+        p[0]["content"] = p[0]["input"]
+        p[0]["input"] = []
+    elif p[1] == "history":
+        out["fields-effect"] = "generate"
+        if "events" in args and args["events"] in ["true","t","True"]:
+            p[0]["output"] += cmd_conf[p[1]]["created_fields"]["true"]
+        else:
+            p[0]["output"] += cmd_conf[p[1]]["created_fields"]["false"]
     return out
 
 # WHERE
@@ -833,54 +865,6 @@ def p_command_where(p):
     'command : CMD_WHERE expression'
     p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"none","content":p[2]["content"]}
 
-# LOOKUP
-def p_command_lookup(p):
-    '''command : CMD_LOOKUP NAME any_fields_list OUTPUT_OP any_fields_list
-               | CMD_LOOKUP NAME any_fields_list OUTPUT_NEW_OP any_fields_list
-               | CMD_LOOKUP NAME any_fields_list
-               | CMD_LOOKUP NAME'''
-    if len(p) > 3:
-        p[0] = {"type":"command","input":p[3]["input"]+p[3]["output"],"output":[],"fields-effect":"extend","file":p[2]}
-    else:
-        p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","file":p[2]}
-    if len(p) > 4:
-        p[0]["output"] = p[5]["input"]
-
-def p_command_lookup_args(p):
-    '''command : CMD_LOOKUP args_list NAME any_fields_list OUTPUT_OP any_fields_list
-               | CMD_LOOKUP args_list NAME any_fields_list OUTPUT_NEW_OP any_fields_list
-               | CMD_LOOKUP args_list NAME any_fields_list
-               | CMD_LOOKUP args_list NAME'''
-    if len(p) > 4:
-        p[0] = {"type":"command","input":p[4]["input"]+p[4]["output"],"output":[],"fields-effect":"extend","file":p[3]}
-    else:
-        p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","file":p[3]}
-    if len(p) > 6:
-        p[0]["output"] = p[5]["input"]
-    checkArgs(p,p[2]["args"])
-
-# INPUTLOOKUP
-def p_command_inputlookup(p):
-    '''command : CMD_INPUTLOOKUP args_list NAME CMD_WHERE expression
-               | CMD_INPUTLOOKUP NAME CMD_WHERE expression
-               | CMD_INPUTLOOKUP args_list NAME
-               | CMD_INPUTLOOKUP NAME'''
-
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","file":""}
-    if len(p) == 6 or len(p) == 4:
-        checkArgs(p,p[2]["args"])
-        p[0]["file"] = p[3]
-    else:
-        p[0]["file"] = p[2]
-
-# OUTPUTLOOKUP
-def p_command_outputlookup(p):
-    '''command : CMD_OUTPUTLOOKUP args_list NAME
-               | CMD_OUTPUTLOOKUP NAME'''
-
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","file":p[len(p)-1]}
-    if len(p) == 4:
-        checkArgs(p,p[2]["args"])
 # ACCUM
 def p_command_accum(p):
     '''command : CMD_ACCUM field_name AS_CLAUSE field_name
@@ -1329,6 +1313,49 @@ def p_command_gauge(p):
     else:
         p[0]["output"] += ["y1","y2"] #default 2 values, range = 0 to 100
 
+# GEOM
+def p_command_geom(p):
+    '''command : CMD_GEOM args_list field_name args_list
+               | CMD_GEOM args_list field_name
+               | CMD_GEOM field_name args_list
+               | CMD_GEOM field_name
+               | CMD_GEOM'''
+    p[0] = {"type":"command","input":[],"output":[cmd_conf[p[1]]["created_fields"]],"fields-effect":"extend","content":[]}
+    args={}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "field_name":
+            p[0]["content"].append(pp["field"])
+    checkArgs(p,args)
+    if "featureIdField" in args:
+        p[0]["input"].append(args["featureIdField"])
+    else:
+        p[0]["input"].append("featureId")
+
+# GEOSTATS
+def p_command_geostats(p):
+    '''command : CMD_GEOSTATS args_list agg_terms_list BY_CLAUSE field_name args_list
+               | CMD_GEOSTATS args_list agg_terms_list BY_CLAUSE field_name
+               | CMD_GEOSTATS agg_terms_list BY_CLAUSE field_name args_list
+               | CMD_GEOSTATS args_list agg_terms_list args_list
+               | CMD_GEOSTATS args_list agg_terms_list
+               | CMD_GEOSTATS agg_terms_list args_list
+               | CMD_GEOSTATS agg_terms_list'''
+    p[0] = {"type":"command","input":[],"output":[cmd_conf[p[1]]["created_fields"]],"fields-effect":"replace","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "agg_terms_list":
+                p[0]["input"] += pp["input"]
+                p[0]["output"] += pp["output"]
+                p[0]["content"] += pp["content"]
+            elif pp["type"] == "field_name":
+                p[0]["input"].append(pp["field"])
+    checkArgs(p,args)
+
 # HEAD
 def p_commend_head(p):
     '''command : CMD_HEAD args_list expression args_list
@@ -1346,6 +1373,54 @@ def p_commend_head(p):
                 p[0]["content"].append(pp["content"])
     checkArgs(p,args)
 
+# INPUTLOOKUP / INPUTCSV
+def p_command_inputlookup(p):
+    '''command : CMD_INPUTLOOKUP args_list field_name CMD_WHERE expression
+               | CMD_INPUTLOOKUP field_name CMD_WHERE expression
+               | CMD_INPUTLOOKUP args_list field_name
+               | CMD_INPUTLOOKUP field_name
+               | CMD_INPUTCSV args_list field_name CMD_WHERE expression
+               | CMD_INPUTCSV field_name CMD_WHERE expression
+               | CMD_INPUTCSV args_list field_name
+               | CMD_INPUTCSV field_name'''
+
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"generate","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "expression":
+                p[0]["content"].append(pp["content"])
+            elif pp["type"] == "field_name":
+                p[0]["content"].append(pp["field"])
+    checkArgs(p,args)
+
+# LOOKUP
+def p_command_lookup(p):
+    '''command : CMD_LOOKUP field_name any_fields_list OUTPUT_OP any_fields_list
+               | CMD_LOOKUP field_name any_fields_list OUTPUT_NEW_OP any_fields_list
+               | CMD_LOOKUP field_name any_fields_list
+               | CMD_LOOKUP field_name'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","content":[p[2]["field"]]}
+    args={}
+    if len(p) > 3:
+        p[0]["input"] += p[3]["input"]+p[3]["output"]
+    if len(p) > 4:
+        p[0]["output"] = p[5]["input"]
+
+def p_command_lookup_args(p):
+    '''command : CMD_LOOKUP args_list field_name any_fields_list OUTPUT_OP any_fields_list
+               | CMD_LOOKUP args_list field_name any_fields_list OUTPUT_NEW_OP any_fields_list
+               | CMD_LOOKUP args_list field_name any_fields_list
+               | CMD_LOOKUP args_list field_name'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","file":p[3]["field"]}
+    if len(p) > 4:
+        p[0]["input"] += p[4]["input"]+p[4]["output"]
+    if len(p) > 6:
+        p[0]["output"] = p[5]["input"]
+    checkArgs(p,p[2]["args"])
+
 # MAKEMV
 def p_command_makemv(p):
     '''command : CMD_MAKEMV args_list field_name args_list
@@ -1362,6 +1437,25 @@ def p_command_makemv(p):
                 p[0]["input"].append(pp["field"])
     checkArgs(p,args)
 
+# OUTPUTLOOKUP / OUTPUTCSV
+def p_command_outputlookup(p):
+    '''command : CMD_OUTPUTLOOKUP args_list field_name args_list
+               | CMD_OUTPUTLOOKUP args_list field_name
+               | CMD_OUTPUTLOOKUP field_name args_list
+               | CMD_OUTPUTLOOKUP field_name
+               | CMD_OUTPUTCSV args_list field_name args_list
+               | CMD_OUTPUTCSV args_list field_name
+               | CMD_OUTPUTCSV field_name args_list
+               | CMD_OUTPUTCSV field_name'''
+
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "field_name":
+            p[0]["content"].append(pp["field"])
+    checkArgs(p,args)
 
 # REGEX
 def p_command_regex(p):
@@ -1622,6 +1716,11 @@ def p_field_name_agg_fun(p):
                   | commands_names LPAREN field_name RPAREN'''
     # Case when a field has been named after the use of an agregation function
     p[0] = {"type":"field_name","field":["{}({})".format(p[1],p[3]["field"])]}
+
+def p_field_name_subsearch(p):
+    '''field_name : subsearch'''
+    p[0] = p[1]
+    p[0]["field"]=""
 
 def p_field_or_num_list(p):
     '''field_or_num_list : field_or_num_list field_or_num
