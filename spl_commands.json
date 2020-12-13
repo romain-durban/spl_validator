@@ -63,6 +63,7 @@
     "iconify" : {"token_name":"CMD_ICONIFY","args":[],"created_fields":[]},
     "inputcsv" : {"token_name":"CMD_INPUTCSV","args":["dispatch","append","strict","start","max","events"],"created_fields":[]},
     "inputlookup" : {"token_name":"CMD_INPUTLOOKUP","args":["append","strict","start","max"],"created_fields":[]},
+    "iplocation" : {"token_name":"CMD_IPLOCATION","args":["prefix","allfields","lang"],"created_fields":{"default":["City","Country","lat","lon","Region"],"extended":["Continent","MetroCode","Timezone"]}},
     "lookup" : {"token_name":"CMD_LOOKUP","args":["local","update"],"created_fields":[]},
     "makemv" : {"token_name":"CMD_MAKEMV","args":["delim","tokenizer","allowempty","setsv"],"created_fields":[]},
     "makeresults" : {"token_name":"CMD_MAKERESULTS","args":["count","annotate","splunk_server","splunk_server_group"],"created_fields":{"default":["_time"],"annotate":["_raw","_time","host","source","sourcetype","splunk_server","splunk_server_group"]}},

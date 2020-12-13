@@ -1,5 +1,5 @@
 
-import sys, os, re, json, logging
+import sys, os, re, json, logging, fnmatch
 from lib.ply import lex
 from lib.ply import yacc
 
@@ -432,11 +432,22 @@ def p_commands(p):
     if len(p) == 4:
         p[0] = {"type":"command","input":p[1]["input"]+p[3]["input"],"output":[],"fields-effect":p[1]["fields-effect"]+[p[3]["fields-effect"]],"content":[]}
         if p[3]["fields-effect"] == "replace":
-            p[0]["output"] = p[3]["output"]
+            p[0]["output"]=[]
+            for f in p[3]["output"]:
+                if "*" in f:
+                    p[0]["output"] += filterFields(p[1]["output"],f)
+                else:
+                    p[0]["output"].append(f)
         elif p[3]["fields-effect"] == "remove":
             p[0]["output"]=[]
+            rem=[]
+            for f in p[3]["output"]:
+                if "*" in f:
+                    rem += filterFields(p[1]["output"],f)
+                else:
+                    rem.append(f)
             for f in p[1]["output"]:
-                if not f in p[3]["output"]:
+                if not f in rem:
                     p[0]["output"].append(f)
         elif p[3]["fields-effect"] == "rename":
             p[0]["output"]=[]
@@ -528,6 +539,7 @@ def p_commands_names(p):
                       | CMD_ICONIFY
                       | CMD_INPUTCSV
                       | CMD_INPUTLOOKUP
+                      | CMD_IPLOCATION
                       | CMD_LOOKUP
                       | CMD_MAKEMV
                       | CMD_MAKERESULTS
@@ -1396,6 +1408,29 @@ def p_command_inputlookup(p):
                 p[0]["content"].append(pp["field"])
     checkArgs(p,args)
 
+# IPLOCATION
+def p_command_iplocation(p):
+    '''command : CMD_IPLOCATION args_list field_name args_list
+               | CMD_IPLOCATION field_name args_list
+               | CMD_IPLOCATION args_list field_name
+               | CMD_IPLOCATION field_name
+               | CMD_IPLOCATION'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","content":[]}
+    args={}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "field_name":
+            p[0]["input"].append(pp["field"])
+    flist=cmd_conf[p[1]]["created_fields"]["default"]
+    prefix=""
+    if "allfields" in args and args["allfields"] in ["true","t","True"]:
+        flist += cmd_conf[p[1]]["created_fields"]["extended"]
+    if "prefix" in args:
+        prefix=args["prefix"]
+    p[0]["output"] += [prefix+f for f in flist]
+    checkArgs(p,args)
+
 # LOOKUP
 def p_command_lookup(p):
     '''command : CMD_LOOKUP field_name any_fields_list OUTPUT_OP any_fields_list
@@ -1604,6 +1639,10 @@ def extendDict(a,b):
                 a[k].append(b[k])
             else:
                 a[k]=[a[k],b[k]]
+
+def filterFields(flist,pattern):
+    return fnmatch.filter(flist,pattern)
+
 
 #---------------------------
 # AGGREGATION fields

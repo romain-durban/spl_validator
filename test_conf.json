@@ -896,6 +896,21 @@
 			"exp_err":0,
 			"tags":["inputcsv","valid","splunk_doc","search","eval","append","subsearch"]
 		},
+		"splunk_iplocation_1": {
+			"search":"sourcetype=access_* | iplocation clientip",
+			"exp_err":0,
+			"tags":["search","iplocation","valid","splunk_doc"]
+		},
+		"splunk_iplocation_2": {
+			"search":"sourcetype=access_* status>=400 | head 20 | iplocation clientip | table clientip, status, City, Country",
+			"exp_err":0,
+			"tags":["search","iplocation","valid","splunk_doc","head","table"]
+		},
+		"splunk_iplocation_3": {
+			"search":"sourcetype = access_* | iplocation prefix=iploc_ allfields=true clientip | fields iploc_*",
+			"exp_err":0,
+			"tags":["search","iplocation","valid","splunk_doc","fields"]
+		},
 
 
 

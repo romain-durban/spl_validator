@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='| outputcsv [stats count | eval search=strftime(now(), \"mysearch-%y%m%d-%H%M%S.csv\")]'
+s='sourcetype = access_* | iplocation prefix=iploc_ allfields=true clientip | fields -iploc_*'
 print(s)
 
 spl_validator.analyze(s,verbose=True)
