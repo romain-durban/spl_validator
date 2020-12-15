@@ -104,9 +104,19 @@ SPL commands specification is done in the `spl_commands.json` file
 | iconify | | | |
 | inputcsv | all args and where | | |
 | inputlookup | all args and where | | |
+| iplocation | all args | | also giving the list of fields generated depending on the arguments |
+| join | all args | | |
+| kmeans | all args | | also giving the created field |
+| loadjob | all args | | not testing if a sid and the searchsearch arg are provided at the same time |
+| localize | all args | | |
+| localop | | | |
 | lookup | all args | | |
+| makecontinuous | all args | | |
 | makemv | all args | | |
 | makeresults | all args | | also giving the list of fields created even with annotate set to true |
+| map | all args | | |
+| mcollect | all args | | makes sure index arg is provided |
+| metadata | all args | | makes sure type is arg is provide and has a correct value, provides the list of created fields |
 | outputcsv | all args | | |
 | outputlookup | all args | | |
 | regex | all args | | |

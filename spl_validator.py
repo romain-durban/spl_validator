@@ -540,9 +540,19 @@ def p_commands_names(p):
                       | CMD_INPUTCSV
                       | CMD_INPUTLOOKUP
                       | CMD_IPLOCATION
+                      | CMD_JOIN
+                      | CMD_KMEANS
+                      | CMD_KVFORM
+                      | CMD_LOADJOB
+                      | CMD_LOCALIZE
+                      | CMD_LOCALOP
                       | CMD_LOOKUP
+                      | CMD_MAKECONTINUOUS
                       | CMD_MAKEMV
                       | CMD_MAKERESULTS
+                      | CMD_MAP
+                      | CMD_MCOLLECT
+                      | CMD_METADATA
                       | CMD_OUTLIER
                       | CMD_OUTPUTCSV
                       | CMD_OUTPUTLOOKUP
@@ -737,21 +747,24 @@ def p_command_basic_no_field(p):
                | CMD_DBINSPECT
                | CMD_DELETE
                | CMD_DIFF
+               | CMD_EVENTCOUNT
                | CMD_FIELDSUMMARY
                | CMD_FILLDOWN
                | CMD_GEOMFILTER
                | CMD_HISTORY
-               | CMD_EVENTCOUNT
+               | CMD_LOCALIZE
+               | CMD_LOCALOP
                | CMD_MAKERESULTS
-               | CMD_OUTLIER'''
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+               | CMD_OUTLIER
+               | CMD_KMEANS'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     p[0] = commands_args_and_fields_output_update(p,[])
 
 # BASIC SINGLE FIELD COMMAND
 def p_command_basic_single_field(p):
     '''command : CMD_EXPAND field_name
                | CMD_FLATTEN field_name'''
-    p[0] = {"type":"command","input":[p[2]["field"]],"output":[],"fields-effect":"none"}
+    p[0] = {"type":"command","input":[p[2]["field"]],"output":[],"fields-effect":"none","content":[]}
 
 # BASIC SINGLE ARG COMMAND
 def p_command_basic_single_arg(p):
@@ -776,8 +789,11 @@ def p_command_basic_only_args(p):
                | CMD_FOLDERIZE args_list
                | CMD_GENTIMES args_list
                | CMD_GEOMFILTER args_list
-               | CMD_MAKERESULTS args_list'''
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
+               | CMD_MAKERESULTS args_list
+               | CMD_KVFORM args_list
+               | CMD_LOCALIZE args_list
+               | CMD_METADATA args_list'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
     p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
 
@@ -787,7 +803,7 @@ def p_command_basic_only_fields(p):
                | CMD_FILLDOWN fields_list
                | CMD_HIGHLIGHT fields_list
                | CMD_ICONIFY fields_list'''
-    p[0] = {"type":"command","input":p[2]["input"],"output":[],"fields-effect":"none"}
+    p[0] = {"type":"command","input":p[2]["input"],"output":[],"fields-effect":"none","content":[]}
     p[0] = commands_args_and_fields_output_update(p,[])
 
 # BASIC FIELDS AND ARGS
@@ -801,8 +817,10 @@ def p_command_basic_args_and_fields(p):
                | CMD_ASSOCIATE command_params_fields_or_args
                | CMD_TRANSACTION command_params_fields_or_args
                | CMD_FIELDSUMMARY command_params_fields_or_args
-               | CMD_OUTLIER command_params_fields_or_args'''
-    p[0] = {"type":"command","input":p[2]["fields"],"output":[],"fields-effect":"none"}
+               | CMD_OUTLIER command_params_fields_or_args
+               | CMD_KMEANS command_params_fields_or_args
+               | CMD_MCOLLECT command_params_fields_or_args'''
+    p[0] = {"type":"command","input":p[2]["fields"],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
     p[0] = commands_args_and_fields_output_update(p,p[2]["args"])
     
@@ -862,14 +880,41 @@ def commands_args_and_fields_output_update(p,args):
         out["fields-effect"] = "generate"
         out["output"] = cmd_conf[p[1]]["created_fields"]
     elif p[1] == "highlight":
-        p[0]["content"] = p[0]["input"]
-        p[0]["input"] = []
+        out["content"] = p[0]["input"]
+        out["input"] = []
     elif p[1] == "history":
         out["fields-effect"] = "generate"
         if "events" in args and args["events"] in ["true","t","True"]:
-            p[0]["output"] += cmd_conf[p[1]]["created_fields"]["true"]
+            out["output"] += cmd_conf[p[1]]["created_fields"]["true"]
         else:
-            p[0]["output"] += cmd_conf[p[1]]["created_fields"]["false"]
+            out["output"] += cmd_conf[p[1]]["created_fields"]["false"]
+    elif p[1] == "kmeans":
+        if "cfield" in args:
+            out["output"].append(args["cfield"])
+        else:
+            out["output"] += cmd_conf[p[1]]["created_fields"]
+            out["fields-effect"] = "extend"
+    elif p[1] == "kvform":
+        if "field" in args:
+            p[0]["input"].append(args["field"])
+    elif p[1] == "mcollect":
+        if not "index" in args:
+            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Missing index argument in command {}".format(p[1]),None,value="index")
+    elif p[1] == "metadata":
+        out["fields-effect"] = "generate"
+        if not "type" in args:
+            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Missing type argument in command {}".format(p[1]),None,value="type")
+        elif args["type"] in cmd_conf[p[1]]["types"]:
+            p[0]["output"].append(cmd_conf[p[1]]["types"][args["type"]])
+        else:
+            arg=args["type"]
+            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Invalid type {} in command {}, expected {}".format(arg,p[1],list(cmd_conf[p[1]]["types"].keys())),None,value=arg)
+        if "index" in args:
+            if isinstance(args["index"],list):
+                out["content"] += args["index"]
+            else:
+                out["content"].append(args["index"])
+        out["output"] += cmd_conf[p[1]]["created_fields"]
     return out
 
 # WHERE
@@ -1431,6 +1476,48 @@ def p_command_iplocation(p):
     p[0]["output"] += [prefix+f for f in flist]
     checkArgs(p,args)
 
+# JOIN
+def p_command_join(p):
+    '''command : CMD_JOIN args_list fields_list args_list subsearch args_list
+               | CMD_JOIN args_list fields_list args_list subsearch
+               | CMD_JOIN fields_list args_list subsearch args_list
+               | CMD_JOIN args_list fields_list subsearch args_list
+               | CMD_JOIN args_list fields_list subsearch
+               | CMD_JOIN fields_list args_list subsearch
+               | CMD_JOIN fields_list subsearch
+               | CMD_JOIN args_list subsearch args_list
+               | CMD_JOIN args_list subsearch
+               | CMD_JOIN subsearch args_list
+               | CMD_JOIN subsearch'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "fields_list":
+            p[0]["input"] += pp["input"]
+        elif pp["type"] == "subsearch":
+            p[0]["input"] += pp["input"]
+            p[0]["output"] += pp["output"]
+            p[0]["content"] += pp["content"]
+    checkArgs(p,args)
+
+# LOADJOB
+def p_command_loadjob(p):
+    '''command : CMD_LOADJOB value args_list
+               | CMD_LOADJOB args_list
+               | CMD_LOADJOB value'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"generate","content":[]}
+    args={}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "value":
+            p[0]["content"].append(pp["value"])
+    if "savedsearch" in args:
+        p[0]["content"].append(args["savedsearch"])
+    checkArgs(p,args)
+
 # LOOKUP
 def p_command_lookup(p):
     '''command : CMD_LOOKUP field_name any_fields_list OUTPUT_OP any_fields_list
@@ -1456,6 +1543,22 @@ def p_command_lookup_args(p):
         p[0]["output"] = p[5]["input"]
     checkArgs(p,p[2]["args"])
 
+# MAKECONTINUOUS
+def p_command_makecontinuous(p):
+    '''command : CMD_MAKECONTINUOUS args_list field_name args_list
+               | CMD_MAKECONTINUOUS field_name args_list
+               | CMD_MAKECONTINUOUS args_list field_name
+               | CMD_MAKECONTINUOUS args_list'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "field_name":
+                p[0]["input"].append(pp["field"])
+    checkArgs(p,args)
+
 # MAKEMV
 def p_command_makemv(p):
     '''command : CMD_MAKEMV args_list field_name args_list
@@ -1470,6 +1573,23 @@ def p_command_makemv(p):
                 extendDict(args,pp["args"])
             elif pp["type"] == "field_name":
                 p[0]["input"].append(pp["field"])
+    checkArgs(p,args)
+
+# MAP
+def p_command_map(p):
+    '''command : CMD_MAP args_list value
+               | CMD_MAP value args_list
+               | CMD_MAP value
+               | CMD_MAP args_list'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "value":
+            p[0]["content"].append(pp["value"])
+    if "search" in args:
+        p[0]["content"].append(args["search"])
     checkArgs(p,args)
 
 # OUTPUTLOOKUP / OUTPUTCSV

@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='sourcetype = access_* | iplocation prefix=iploc_ allfields=true clientip | fields -iploc_*'
+s='| metadata type=hosts index=cs* index=na* index=ap* index=eu*'
 print(s)
 
 spl_validator.analyze(s,verbose=True)

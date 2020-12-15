@@ -841,6 +841,21 @@
 			"exp_err":0,
 			"tags":["search","geostats","valid","splunk_doc","stats","table","lookup"]
 		},
+		"splunk_head_1": {
+			"search":"index=idx | head 20",
+			"exp_err":0,
+			"tags":["search","head","valid","splunk_doc"]
+		},
+		"splunk_head_2": {
+			"search":"index=idx | head 20",
+			"exp_err":0,
+			"tags":["search","head","valid","splunk_doc"]
+		},
+		"splunk_head_3": {
+			"search":"| makeresults count=7 | streamstats count | eval count=if(count=3,null(), count) | head count<5 keeplast=true null=true",
+			"exp_err":0,
+			"tags":["makeresults","head","valid","splunk_doc","streamstats","eval"]
+		},
 		"splunk_highlight_1": {
 			"search":"index=idx | highlight login,logout",
 			"exp_err":0,
@@ -911,30 +926,76 @@
 			"exp_err":0,
 			"tags":["search","iplocation","valid","splunk_doc","fields"]
 		},
-
-
-
-
-
-		"splunk_head_1": {
-			"search":"index=idx | head 20",
+		"splunk_join_1": {
+			"search":"index=idx | join product_id [search vendors]",
 			"exp_err":0,
-			"tags":["search","head","valid","splunk_doc"]
+			"tags":["search","join","valid","splunk_doc","subsearch"]
 		},
-		"splunk_head_2": {
-			"search":"index=idx | head 20",
+		"splunk_join_2": {
+			"search":"index=idx | join product_id [search vendors | rename pid AS product_id]",
 			"exp_err":0,
-			"tags":["search","head","valid","splunk_doc"]
+			"tags":["search","join","valid","splunk_doc","subsearch","rename"]
 		},
-		"splunk_head_3": {
-			"search":"| makeresults count=7 | streamstats count | eval count=if(count=3,null(), count) | head count<5 keeplast=true null=true",
+		"splunk_join_3": {
+			"search":"index=idx | join product_id max=0 [search vendors]",
 			"exp_err":0,
-			"tags":["makeresults","head","valid","splunk_doc","streamstats","eval"]
+			"tags":["search","join","valid","splunk_doc","subsearch"]
 		},
-
-
-
-
+		"splunk_kmeans_1": {
+			"search":"index=idx | kmeans k=4 date_hour date_minute",
+			"exp_err":0,
+			"tags":["search","kmeans","valid","splunk_doc"]
+		},
+		"splunk_kmeans_2": {
+			"search":"index=idx | kmeans",
+			"exp_err":0,
+			"tags":["search","kmeans","valid","splunk_doc"]
+		},
+		"splunk_kvform_1": {
+			"search":"index=idx | kvform form=sales_order",
+			"exp_err":0,
+			"tags":["search","kvform","valid","splunk_doc"]
+		},
+		"splunk_kvform_2": {
+			"search":"index=idx | kvform field=sourcetype",
+			"exp_err":0,
+			"tags":["search","kvform","valid","splunk_doc"]
+		},
+		"splunk_kvform_3": {
+			"search":"index=idx | kvform field=eventtype",
+			"exp_err":0,
+			"tags":["search","kvform","valid","splunk_doc"]
+		},
+		"splunk_loadjob_1": {
+			"search":"| loadjob savedsearch=\"admin:search:MySavedSearch\"",
+			"exp_err":0,
+			"tags":["loadjob","valid","splunk_doc"]
+		},
+		"splunk_loadjob_2": {
+			"search":"| loadjob 1233886270.2 events=true",
+			"exp_err":0,
+			"tags":["loadjob","valid","splunk_doc"]
+		},
+		"splunk_localize_1": {
+			"search":"index=idx | localize maxpause=5m | map search=\"search failure starttimeu=$starttime$ endtimeu=$endtime$\"",
+			"exp_err":0,
+			"tags":["search","localize","valid","splunk_doc","map"]
+		},
+		"splunk_localize_2": {
+			"search":"index=idx | localize | map search=\"search starttimeu::$starttime$ endtimeu::$endtime$ | transaction uid,qid maxspan=1h\"",
+			"exp_err":0,
+			"tags":["search","localize","valid","splunk_doc","map"]
+		},
+		"splunk_localop_1": {
+			"search":"FOO BAR | localop | iplocation clientip",
+			"exp_err":0,
+			"tags":["search","localop","valid","iplocation"]
+		},
+		"splunk_makecontinuous_1": {
+			"search":"index=idx | makecontinuous _time span=10m",
+			"exp_err":0,
+			"tags":["search","makecontinuous","valid","splunk_doc"]
+		},
 		"splunk_makemv_1": {
 			"search":"eventtype=\"sendmail\" | makemv delim=\",\" senders | top senders",
 			"exp_err":0,
@@ -959,6 +1020,51 @@
 			"search":"| makeresults count=5 annotate=true",
 			"exp_err":0,
 			"tags":["makeresults","valid"]
+		},
+		"splunk_map_1": {
+			"search":"index=idx | localize | map mytimebased_savedsearch",
+			"exp_err":0,
+			"tags":["search","map","valid","splunk_doc","localize"]
+		},
+		"splunk_map_2": {
+			"search":"index=idx | map search=\"search starttimeu::$start$ endtimeu::$end$\" maxsearches=10",
+			"exp_err":0,
+			"tags":["search","map","valid","splunk_doc"]
+		},
+		"splunk_map_3": {
+			"search":"sourcetype=syslog sudo | stats count by user host | map search=\"search index=ad_summary username=$user$ type_logon=ad_last_logon\"",
+			"exp_err":0,
+			"tags":["search","map","valid","splunk_doc","stats"]
+		},
+		"splunk_mcollect_1": {
+			"search":"index=\"_audit\" search_id info total_run_time | stats count(search_id) as jobs avg(total_run_time) as latency by user | rename jobs as metric_name:jobs latency as metric_name:latency | mcollect index=mcollect_test",
+			"exp_err":0,
+			"tags":["search","mcollect","valid","splunk_doc","stats","rename"]
+		},
+		"splunk_mcollect_2": {
+			"search":"index=\"_audit\" info=completed | stats max(total_run_time) as runtime max(event_count) as events by user | mcollect index=mcollect_test split=t user",
+			"exp_err":0,
+			"tags":["search","mcollect","valid","splunk_doc","stats"]
+		},
+		"splunk_metadata_1": {
+			"search":"| metadata type=hosts index=cs* index=na* index=ap* index=eu*",
+			"exp_err":0,
+			"tags":["metadata","valid","splunk_doc"]
+		},
+		"splunk_metadata_2": {
+			"search":"| metadata type=sourcetypes index=_internal",
+			"exp_err":0,
+			"tags":["metadata","valid","splunk_doc"]
+		},
+		"splunk_metadata_3": {
+			"search":"| metadata type=sourcetypes index=_internal | rename totalCount as Count firstTime as \"First Event\" lastTime as \"Last Event\" recentTime as \"Last Update\" | fieldformat Count=tostring(Count, \"commas\") | fieldformat \"First Event\"=strftime('First Event', \"%c\") | fieldformat \"Last Event\"=strftime('Last Event', \"%c\") | fieldformat \"Last Update\"=strftime('Last Update', \"%c\")",
+			"exp_err":0,
+			"tags":["metadata","valid","splunk_doc","rename","fieldformat"]
+		},
+		"splunk_metadata_4": {
+			"search":"| metadata type=sourcetypes index=_audit splunk_server=foo",
+			"exp_err":0,
+			"tags":["metadata","valid","splunk_doc"]
 		},
 		"splunk_outlier_1": {
 			"search":"404 host=\"webserver\" | timechart avg(cpu_seconds) by host | outlier action=tf",
