@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='| metadata type=hosts index=cs* index=na* index=ap* index=eu*'
+s='index=idx | eval max=`fooseval(a,b)`'
 print(s)
 
-spl_validator.analyze(s,verbose=True)
+spl_validator.analyze(s,verbose=True,macro_files=["macros.conf"])

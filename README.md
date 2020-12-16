@@ -9,12 +9,14 @@ Files are already onboarded in the lib folder but you might want to check for up
 
 ## Usage
 
-For now, the core of the parser is in the file `spl_validator.py` which describes the syntax of SPL (tokens and grammar rules) and adds so more feature on top of it. The validator can be called using the function `analyze(s,verbose=False,print_errs=True)`.
+For now, the core of the parser is in the file `spl_validator.py` which describes the syntax of SPL (tokens and grammar rules) and adds so more feature on top of it. The validator can be called using the function `analyze(s,verbose=False,print_errs=True,macro_files=[])`.
 
 * `s` is the string to analyze
 * `print_errs` (optional, default true) will output the errors found (syntax and wrong SPL usages) (logging.ERROR)
   * If disabled but in verbose mode, errors will not be displayed
 * `verbose` (optional, default false) will output more information about elements being parsed (logging.DEBUG)
+* `macro_files` (optional, default empty list) is the list of file paths for macro definitions (macros.conf) to use to expand the macros calls before running the analysis
+  * If a macro is found but cannot be expanded, it will be discarded but the SPL might not be syntaxically valid without the content of the macro
 
 Function return an object with the following attributes:
 
@@ -146,6 +148,27 @@ A small testing module has been written in `test.py` which runs a series of test
   * Example: `"selection": [["search","error"]]` will select test cases having both tags
   * Other example: `"selection": [["search"],["error"]]` will select test cases where at least one of the tags matched
   * Use `*` to select them all
+
+## Macros handling
+
+Another module has been implemented in `macros.py` to handle the case of Splunk search macros. Three functions are made available:
+
+* `loadFile(fpath)` Loads the conf file at the given path and return a dictionary containing the stanzas found
+* `expandMacro(macro,mconf)` Tries to expand the given macro call (without the backticks) using the provided macros configuration
+  * The macros configuration expected is the one returned by the function `loadFile`
+  * It return a dictionary with two fields:
+    * `success`: Boolean indicating if the macro could be succesfully expanded
+    * `text`: A string containing either the error message or the result of the macro extension
+* `handleMacros(spl,macro_defs_paths=[])` Analyses the content of the provided SPL and loads the macro definitions from the list of file paths given in input
+  * Return a dictionary containing three fields:
+    * `txt`: the updated SPL (or not if no macro could be expanded)
+    * `unique_macros_found`: The number of distinct macro calls found
+    * `unique_macros_expanded`: The number of distinct macro calls expanded
+      * This can be used to deduce if some macros could not be expanded and might cause future issues
+
+The `handleMacros` function is used in the main parser to try to expanded the macros using the provided list of file configuration paths.
+
+Keep in mind that the principle of macros goes against the concept of formal grammars, consequently they have to be expanded before any kind of analysis and the remaining ones should be discarded (which is done here by the lexer).
 
 ## Debugging
 

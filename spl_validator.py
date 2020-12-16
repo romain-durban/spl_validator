@@ -2,6 +2,7 @@
 import sys, os, re, json, logging, fnmatch
 from lib.ply import lex
 from lib.ply import yacc
+import macros
 
 # LOGGING
 logger = logging.getLogger('spl_validator')
@@ -137,8 +138,6 @@ def t_NUMBER(t):
 def t_error(t):
     report_error(t.lexpos,t.lexpos+len(t.value[0]),"Illegal character {}".format(t.value[0]),None,value=t.value[0])
     t.lexer.skip(1)
-
-lexer = None
 
 #---------------------------
 #       YACC
@@ -2006,9 +2005,9 @@ def p_error(p):
     if p:
         report_error(max(0,p.lexpos-10),p.lexpos+len(str(p.value)),"Unexpected symbol",p)
     else:
-        report_error(-10,-1,"Syntax error in at AOF",None)
+        report_error(-20,-1,"Unexpected end of query",None)
 
-parser = None
+
 
 #---------------------------
 #       CUSTOM FUNCTIONS
@@ -2018,6 +2017,8 @@ scope_level=0
 errors={"list":[],"ref":{}}
 params={"verbose":True,"print_errs":True}
 data = {"main":{},"subsearches":[]}
+lexer = None
+parser = None
 
 def init_analyser():
     global errors, scope_level, data, logger, parser, lex
@@ -2034,10 +2035,9 @@ def init_analyser():
         logger.setLevel(logging.CRITICAL)
         ch.setLevel(logging.CRITICAL)
     #Initializing parser only once
-    if lexer is None:
-        logger.info("Lexer initializing")
-        lex.lex(errorlog=logger)
     if parser is None:
+        logger.info("Lexer initializing")
+        lexer = lex.lex(errorlog=logger)
         logger.info("Yacc initializing")
         parser = yacc.yacc(debug=True,errorlog=logger)
     logger.info("Parser initialization finished")
@@ -2084,12 +2084,18 @@ def print_errors(s):
 #       EXECUTION
 #---------------------------
 
-def analyze(s,verbose=False,print_errs=True):
+def analyze(s,verbose=False,print_errs=True,macro_files=[]):
     global errors, params, data, logger
     try:
         params["verbose"]=verbose
         params["print_errs"]=print_errs
         init_analyser()
+        if len(macro_files) > 0:
+            res = macros.handleMacros(s,macro_files)
+            logger.info("{} unique macros found and {} were expanded".format(res["unique_macros_found"],res["unique_macros_expanded"]))
+            if res["unique_macros_found"] > res["unique_macros_expanded"]:
+                logger.warning("{} macros could not be expanded".format(res["unique_macros_found"]-res["unique_macros_expanded"]))
+            s = res["text"]
         r = yacc.parse(s,tracking=True,debug=False)
         if print_errs:
             print_errors(s)

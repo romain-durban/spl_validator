@@ -5,6 +5,11 @@ Doc:
 	https://docs.python.org/3/library/configparser.html
 '''
 
+#------------
+# GLOBAL VAR
+#------------
+macro_defs={}	# To cache the files import in case of repeated usages
+
 # Imports a macro conf file
 def loadFile(fpath):
 	config = configparser.ConfigParser()
@@ -59,16 +64,17 @@ def expandMacro(macro,mconf):
 	else:	# Macro not found, either wrong call or it does not exists
 		return {"success":False,"text":"Could not find macro with stanza {}".format(stanza)}
 
-def handleMacros(spl,macro_defs_paths):
-	macro_defs={}
+def handleMacros(spl,macro_defs_paths=[]):
+	global macro_defs
 	# In case only 1 string is given instead of a list
 	if not isinstance(macro_defs_paths,list):
 		macro_defs_paths=[macro_defs_paths]
 	# Loading all macro definition files
 	for p in macro_defs_paths:
-		macro_defs[p]=loadFile(p)
+		if not p in macro_defs:	#Not loading again if already in cache
+			macro_defs[p]=loadFile(p)
 	#Extracting macro calls from the spl
-	mcalls=list(set(re.findall("`([^`]+)`",s)))
+	mcalls=list(set(re.findall("`([^`]+)`",spl)))
 	msub={}
 	# Trying to expand the macros accross all the available definitions
 	for p in macro_defs:
