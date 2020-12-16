@@ -170,6 +170,10 @@ The `handleMacros` function is used in the main parser to try to expanded the ma
 
 Keep in mind that the principle of macros goes against the concept of formal grammars, consequently they have to be expanded before any kind of analysis and the remaining ones should be discarded (which is done here by the lexer).
 
+### About recursive macros
+
+Recursive macros are supported, the process of macros detection and expanding is repeated until no more are found (unless none of those left could be expanded) up to 100 repetitions.
+
 ## Debugging
 
 The PLY parser prints debugging information in the file `parser.out`, which contains elements such as the state machine description, helping understand how the parser behaves.

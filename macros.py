@@ -38,6 +38,7 @@ def expandMacro(macro,mconf):
 			nb_args=len(margs)
 		else:
 			nb_args=1
+			margs=[margs]
 	if nb_args > 0:	# Builds the expected stanza name of format macro_name OR macro_name(args_number)
 		stanza="{}({})".format(mname,nb_args)
 	else:
@@ -73,21 +74,31 @@ def handleMacros(spl,macro_defs_paths=[]):
 	for p in macro_defs_paths:
 		if not p in macro_defs:	#Not loading again if already in cache
 			macro_defs[p]=loadFile(p)
+	ret={"text":spl,"unique_macros_found":0,"unique_macros_expanded":0}
 	#Extracting macro calls from the spl
 	mcalls=list(set(re.findall("`([^`]+)`",spl)))
-	msub={}
-	# Trying to expand the macros accross all the available definitions
-	for p in macro_defs:
-		for mcall in mcalls:
-			if not mcall in msub:
-				res=expandMacro(mcall,macro_defs[p])
-				if res["success"]:
-					msub[mcall]=res["text"]
-	# Replacing in the original string
-	res={"text":spl,"unique_macros_found":len(mcalls),"unique_macros_expanded":len(msub)}
-	for mcall in msub:
-		res["text"]=res["text"].replace("`{}`".format(mcall),msub[mcall])
-	return res
+	nb_rec=1
+	while len(mcalls) > 0 and nb_rec < 100:
+		msub={}
+		# Trying to expand the macros accross all the available definitions
+		for p in macro_defs:
+			for mcall in mcalls:
+				if not mcall in msub:
+					res=expandMacro(mcall,macro_defs[p])
+					if res["success"]:
+						msub[mcall]=res["text"]
+		# Replacing in the original string
+		ret["unique_macros_found"] += len(mcalls)
+		ret["unique_macros_expanded"] += len(msub)
+		for mcall in msub:
+			ret["text"]=ret["text"].replace("`{}`".format(mcall),msub[mcall])
+		mcalls=list(set(re.findall("`([^`]+)`",ret["text"])))
+		# To stop the repetition in case there some macros that could not be expanded
+		# No need to try in vain 100 times if the previous attempt didn't achieve anything
+		if len(msub) == 0:
+			mcalls=[]	
+		nb_rec += 1
+	return ret
 
 '''
 s="`foobar(arg1,arg2)` source=*sysmon* | stats count by host | eval max=`fooeval(a,b)`"
