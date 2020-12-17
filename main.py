@@ -11,7 +11,8 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='index=idx | eval `foobar`'
+s='index=idx | rex field=savedsearch_id \"(?<user>\\w+);(?<app>\\w+);(?<SavedSearchName>\\w+)\"'
+
 print(s)
 
-spl_validator.analyze(s,verbose=True,macro_files=["macros.conf"])
+spl_validator.analyze(s,verbose=True,macro_files=[])

@@ -33,6 +33,7 @@ if cmd_conf is None:
 reserved = {
     'as' : 'AS_CLAUSE',
     'by' : 'BY_CLAUSE',
+    'groupby' : 'GROUPBY_CLAUSE',
     'sortby' : 'SORTBY_CLAUSE',
     'or' : 'OR_OP',
     'and' : 'AND_OP',
@@ -100,7 +101,7 @@ def t_DATE(t):
 
 #Strings
 def t_PATTERN(t):
-    r'(\*[^\*\s]+\*|\*[a-zA-Z0-9_\.\{\}\-:<>]+|[a-zA-Z0-9_\.\{\}\-:<>]+\*)'
+    r'(\*[^\*\s]+\*|\*[a-zA-Z0-9_\.\{\}\-:<>/]+|[a-zA-Z0-9_\.\{\}\-:<>/]+\*)'
     return t
 
 def t_STRING(t):
@@ -113,7 +114,7 @@ def t_STRING(t):
     return t
 
 def t_NAME(t):
-    r'([a-zA-Z0-9_\{\}]*<<[a-zA-Z0-9_\{\}]+>>[a-zA-Z0-9_\{\}]*|[a-zA-Z0-9_\{\}][a-zA-Z0-9_\.\{\}\-:]*)'
+    r'([a-zA-Z0-9_\{\}]*<<[a-zA-Z0-9_\{\}]+>>[a-zA-Z0-9_\{\}]*|[a-zA-Z0-9_\{\}/][a-zA-Z0-9_\.\{\}\-:/]*)'
     global cmd_conf
     if t.value.lower() in cmd_conf:
         t.type = cmd_conf[t.value.lower()]["token_name"]    # Check for command names, lowercase
@@ -203,6 +204,15 @@ def p_subsearch(p):
     p[0] = {"type":"subsearch","input":p[3]["input"],"output":p[3]["output"],"content":p[3]["content"]}
     scope_level = scope_level -1
 
+def p_subsearches(p):
+    '''subsearches : subsearches subsearch
+                   | subsearch'''
+    p[0] = {"type":"subsearches","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"]}
+    if len(p) > 2:
+        p[0]["input"] += p[2]["input"]
+        p[0]["output"] += p[2]["output"]
+        p[0]["content"] += p[2]["content"]
+
 def p_new_scope(p):
     'new_scope :'
     global scope_level
@@ -228,24 +238,24 @@ def p_filters(p):
 # Logical conditions
 def p_filters_logic(p):
     '''filters : filters_logic_exp'''
-    p[0] = {"type":"filters_logic","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
+    p[0] = {"type":"filters","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
 
 def p_filters_logic_exp(p):
-    '''filters_logic_exp : filters_logic_exp OR_OP filters_logic_term
+    '''filters_logic_exp : filters_logic_term AND_OP filters_logic_exp
+                         | filters_logic_term filters_logic_exp
                          | filters_logic_term'''
     if len(p) == 4:
         p[0] = {"type":"filters_logic_exp","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
+    elif len(p) == 3:
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"],"content":p[1]["content"]+p[2]["content"],"op":p[1]["op"] + ["and"] + p[2]["op"]}
     else:
         p[0] = {"type":"filters_logic_exp","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
 
 def p_filters_logic_term(p):
-    '''filters_logic_term : filters_logic_term AND_OP filters_logic_factor
-                          | filters_logic_term filters_logic_factor
+    '''filters_logic_term : filters_logic_factor OR_OP filters_logic_exp
                           | filters_logic_factor'''
     if len(p) == 4:
         p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
-    elif len(p) == 3:
-        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"],"content":p[1]["content"]+p[2]["content"],"op":p[1]["op"] + ["and"] + p[2]["op"]}
     else:
         p[0] = {"type":"filters_logic_term","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
 
@@ -254,11 +264,11 @@ def p_filters_logic_factor(p):
                             | NOT_OP filters_logic_factor
                             | LPAREN filters_logic_exp RPAREN'''
     if len(p) > 2:
-        p[0] = {"type":"filters_logic_term","input":p[2]["input"],"output":p[2]["output"],"content":p[2]["content"],"op":p[2]["op"]}
+        p[0] = {"type":"filters_logic_factor","input":p[2]["input"],"output":p[2]["output"],"content":p[2]["content"],"op":p[2]["op"]}
         if p[1] == "not":
             p[0]["op"] = [p[1]] + p[0]["op"]
     else:
-        p[0] = {"type":"filters_logic_term","input":p[1]["input"],"output":p[1]["output"],"content":[p[1]["value"]],"op":[]}
+        p[0] = {"type":"filters_logic_factor","input":p[1]["input"],"output":p[1]["output"],"content":[p[1]["value"]],"op":[]}
 # ---
 
 def p_filter_eq(p):
@@ -552,12 +562,22 @@ def p_commands_names(p):
                       | CMD_MAP
                       | CMD_MCOLLECT
                       | CMD_METADATA
+                      | CMD_METASEARCH
+                      | CMD_MEVENTCOLLECT
+                      | CMD_MPREVIEW
+                      | CMD_MSTATS
+                      | CMD_MULTIKV
+                      | CMD_MULTISEARCH
+                      | CMD_MVCOMBINE
+                      | CMD_MVEXPAND
+                      | CMD_NOMV
                       | CMD_OUTLIER
                       | CMD_OUTPUTCSV
                       | CMD_OUTPUTLOOKUP
                       | CMD_REGEX
                       | CMD_RENAME
                       | CMD_REVERSE
+                      | CMD_REX
                       | CMD_SEARCH
                       | CMD_SORT
                       | CMD_STATS
@@ -566,8 +586,9 @@ def p_commands_names(p):
                       | CMD_TIMECHART
                       | CMD_TOP
                       | CMD_TRANSACTION
-                      | CMD_WHERE
                       '''
+    # Removed CMD_WHERE on purpose because it also is a operator in various commands
+    # and this creates unwanted behaviours
     p[0] = p[1]
 
 def p_op_names(p):
@@ -755,14 +776,16 @@ def p_command_basic_no_field(p):
                | CMD_LOCALOP
                | CMD_MAKERESULTS
                | CMD_OUTLIER
-               | CMD_KMEANS'''
+               | CMD_KMEANS
+               | CMD_MPREVIEW'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     p[0] = commands_args_and_fields_output_update(p,[])
 
 # BASIC SINGLE FIELD COMMAND
 def p_command_basic_single_field(p):
     '''command : CMD_EXPAND field_name
-               | CMD_FLATTEN field_name'''
+               | CMD_FLATTEN field_name
+               | CMD_NOMV field_name'''
     p[0] = {"type":"command","input":[p[2]["field"]],"output":[],"fields-effect":"none","content":[]}
 
 # BASIC SINGLE ARG COMMAND
@@ -791,7 +814,8 @@ def p_command_basic_only_args(p):
                | CMD_MAKERESULTS args_list
                | CMD_KVFORM args_list
                | CMD_LOCALIZE args_list
-               | CMD_METADATA args_list'''
+               | CMD_METADATA args_list
+               | CMD_MPREVIEW args_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
     p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
@@ -818,7 +842,8 @@ def p_command_basic_args_and_fields(p):
                | CMD_FIELDSUMMARY command_params_fields_or_args
                | CMD_OUTLIER command_params_fields_or_args
                | CMD_KMEANS command_params_fields_or_args
-               | CMD_MCOLLECT command_params_fields_or_args'''
+               | CMD_MCOLLECT command_params_fields_or_args
+               | CMD_MEVENTCOLLECT command_params_fields_or_args'''
     p[0] = {"type":"command","input":p[2]["fields"],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
     p[0] = commands_args_and_fields_output_update(p,p[2]["args"])
@@ -896,7 +921,7 @@ def commands_args_and_fields_output_update(p,args):
     elif p[1] == "kvform":
         if "field" in args:
             p[0]["input"].append(args["field"])
-    elif p[1] == "mcollect":
+    elif p[1] in ["mcollect","meventcollect"]:
         if not "index" in args:
             report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Missing index argument in command {}".format(p[1]),None,value="index")
     elif p[1] == "metadata":
@@ -914,6 +939,15 @@ def commands_args_and_fields_output_update(p,args):
             else:
                 out["content"].append(args["index"])
         out["output"] += cmd_conf[p[1]]["created_fields"]
+    elif p[1] == "mpreview":
+        out["fields-effect"] = "generate"
+        if "index" in args:
+            if isinstance(args["index"],list):
+                out["content"] += args["index"]
+            else:
+                out["content"].append(args["index"])
+        if "filter" in args:
+            out["content"].append(args["filter"])
     return out
 
 # WHERE
@@ -1591,6 +1625,141 @@ def p_command_map(p):
         p[0]["content"].append(args["search"])
     checkArgs(p,args)
 
+# METASEARCH
+def p_command_metasearch(p):
+    '''command : CMD_METASEARCH filters
+               | CMD_METASEARCH'''
+    p[0] = {"type":"command","input":[],"output":cmd_conf[p[1]]["created_fields"],"fields-effect":"generate","content":[]}
+    if len(p) > 2:
+        p[0]["input"] = p[2]["input"]
+        p[0]["content"] = [p[2]["content"]]
+
+# MSTATS
+def p_command_mstats(p):
+    '''command : CMD_MSTATS mstats_1 mstats_2
+               | CMD_MSTATS mstats_1'''
+    p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"generate","content":p[2]["content"]}
+    args=p[2]["args"]
+    if len(p) > 3:
+        extendDict(args,p[3]["args"])
+        p[0]["input"] += p[3]["input"]
+        p[0]["output"] += p[3]["output"]
+        p[0]["content"] += p[3]["content"]
+    checkArgs(p,args)
+
+def p_command_mstats_1(p):
+    '''mstats_1 : args_list agg_terms_list args_list
+                | args_list agg_terms_list
+                | agg_terms_list args_list
+                | agg_terms_list'''
+    p[0] = {"type":"mstats_1","input":[],"output":[],"fields-effect":"none","content":[],"args":{}}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(p[0]["args"],pp["args"])
+        elif pp["type"] == "agg_terms_list":
+            p[0]["input"] += pp["input"]
+            p[0]["output"] += pp["output"]
+            p[0]["content"] += pp["content"]
+
+def p_command_mstats_2(p):
+    '''mstats_2 : mstats_2_where mstats_2_by
+                | mstats_2_where
+                | mstats_2_by'''
+    p[0] = {"type":"mstats_2","input":p[1]["input"],"output":p[1]["output"],"fields-effect":"none","content":p[1]["content"],"args":p[1]["args"]}
+    if len(p) > 2:
+        extendDict(p[0]["args"],p[2]["args"])
+        p[0]["input"] += p[2]["input"]
+        p[0]["output"] += p[2]["output"]
+        p[0]["content"] += p[2]["content"]
+
+
+def p_command_mstats_2_where(p):
+    '''mstats_2_where : CMD_WHERE filters args_list mstats_2_by
+                      | CMD_WHERE filters mstats_2_by
+                      | CMD_WHERE filters args_list
+                      | CMD_WHERE filters'''
+    p[0] = {"type":"mstats_2_where","input":[],"output":[],"fields-effect":"none","content":[],"args":{}}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(p[0]["args"],pp["args"])
+            elif pp["type"] == "filters":
+                p[0]["input"] += pp["input"]
+                p[0]["output"] += pp["output"]
+                p[0]["content"] += pp["content"]
+            elif pp["type"] == "mstats_2_by":
+                p[0]["input"] += pp["input"]
+                p[0]["output"] += pp["output"]
+                p[0]["content"] += pp["content"]
+
+def p_command_mstats_2_by(p):
+    '''mstats_2_by : BY_CLAUSE fields_list args_list
+                   | GROUPBY_CLAUSE fields_list args_list
+                   | BY_CLAUSE fields_list
+                   | GROUPBY_CLAUSE fields_list'''
+    p[0] = {"type":"mstats_2_by","input":[],"output":[],"fields-effect":"none","content":[],"args":{}}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(p[0]["args"],pp["args"])
+            elif pp["type"] == "fields_list":
+                p[0]["input"] += pp["input"]
+                p[0]["output"] += pp["output"]
+
+# MULTIKV
+def p_command_multikv(p):
+    '''command : CMD_MULTIKV args_list CMD_FIELDS fields_list args_list NAME values_list args_list
+               | CMD_MULTIKV args_list CMD_FIELDS fields_list args_list NAME values_list
+               | CMD_MULTIKV args_list CMD_FIELDS fields_list NAME values_list args_list
+               | CMD_MULTIKV CMD_FIELDS fields_list args_list NAME values_list args_list
+               | CMD_MULTIKV CMD_FIELDS fields_list NAME values_list args_list
+               | CMD_MULTIKV args_list CMD_FIELDS fields_list NAME values_list
+               | CMD_MULTIKV CMD_FIELDS fields_list args_list NAME values_list
+               | CMD_MULTIKV CMD_FIELDS fields_list NAME values_list
+               | CMD_MULTIKV args_list CMD_FIELDS fields_list args_list
+               | CMD_MULTIKV args_list CMD_FIELDS fields_list
+               | CMD_MULTIKV CMD_FIELDS fields_list args_list
+               | CMD_MULTIKV CMD_FIELDS fields_list
+               | CMD_MULTIKV args_list NAME values_list args_list
+               | CMD_MULTIKV NAME values_list args_list
+               | CMD_MULTIKV args_list NAME values_list
+               | CMD_MULTIKV NAME values_list
+               | CMD_MULTIKV args_list'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "fields_list":
+                p[0]["input"] += pp["input"]
+            elif pp["type"] == "values_list":
+                p[0]["content"] += pp["values"]
+        else:
+            if not pp in cmd_conf[p[1]]["selectors"]:
+                report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected selector {} in {}, expected {}".format(pp,p[1],cmd_conf[p[1]]["selectors"]),None,value=pp)
+    checkArgs(p,args)
+
+# MULTISEARCH
+def p_command_multisearch(p):
+    '''command : CMD_MULTISEARCH subsearches'''
+    p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"generate","content":p[2]["content"]}
+
+# MVCOMBINE / MVEXPAND
+def p_command_mvcombine(p):
+    '''command : CMD_MVCOMBINE args_term field_name
+               | CMD_MVCOMBINE field_name args_term
+               | CMD_MVCOMBINE field_name
+               | CMD_MVEXPAND args_term field_name
+               | CMD_MVEXPAND field_name args_term
+               | CMD_MVEXPAND field_name'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    for pp in p[2:]:
+        if pp["type"] == "args_term":
+            checkArgs(p,pp["args"])
+        elif pp["type"] == "field_name":
+            p[0]["input"].append(pp["field"])
+
 # OUTPUTLOOKUP / OUTPUTCSV
 def p_command_outputlookup(p):
     '''command : CMD_OUTPUTLOOKUP args_list field_name args_list
@@ -1619,6 +1788,25 @@ def p_command_regex(p):
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[p[len(p)-1]]}
     if isinstance(p[2],dict):
         p[0]["input"].append(p[2]["field"])
+
+# REX
+def p_command_rex(p):
+    '''command : CMD_REX args_list STRING args_list
+               | CMD_REX args_list STRING
+               | CMD_REX STRING args_list
+               | CMD_REX STRING'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+        else:
+            reg=re.compile("\?<([^>]+)>")   # Extracting named groups
+            newfields=reg.findall(pp)
+            if len(newfields) > 0:
+                p[0]["output"] += newfields
+    checkArgs(p,args)
 
 # STREAMSTATS
 def p_command_streamstats(p):
@@ -2092,7 +2280,8 @@ def analyze(s,verbose=False,print_errs=True,macro_files=[]):
         init_analyser()
         if len(macro_files) > 0:
             res = macros.handleMacros(s,macro_files)
-            logger.info("{} unique macros found and {} were expanded".format(res["unique_macros_found"],res["unique_macros_expanded"]))
+            if res["unique_macros_found"] > 0:
+                logger.info("{} unique macros found and {} were expanded".format(res["unique_macros_found"],res["unique_macros_expanded"]))
             if res["unique_macros_found"] > res["unique_macros_expanded"]:
                 logger.warning("{} macros could not be expanded".format(res["unique_macros_found"]-res["unique_macros_expanded"]))
             s = res["text"]

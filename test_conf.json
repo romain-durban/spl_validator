@@ -1066,6 +1066,131 @@
 			"exp_err":0,
 			"tags":["metadata","valid","splunk_doc"]
 		},
+		"splunk_metasearch_1": {
+			"search":"| metasearch 404 host=\"webserver1\"",
+			"exp_err":0,
+			"tags":["metasearch","valid","splunk_doc"]
+		},
+		"splunk_meventcollect_1": {
+			"search":"index=_internal source=*/metrics.log | eval prefix = group + \".\" + name | meventcollect index=my_metric_index split=true prefix_field=prefix name group",
+			"exp_err":0,
+			"tags":["search","meventcollect","valid","splunk_doc"]
+		},
+		"splunk_mpreview_1": {
+			"search":"| mpreview index=_metrics filter=\"group=queue name=indexqueue metric_name=*.current_size\"",
+			"exp_err":0,
+			"tags":["mpreview","valid","splunk_doc"]
+		},
+		"splunk_mpreview_2": {
+			"search":"| mpreview index=_metrics",
+			"exp_err":0,
+			"tags":["mpreview","valid","splunk_doc"]
+		},
+		"splunk_mpreview_3": {
+			"search":"| mpreview index=_metrics chunk_size=100",
+			"exp_err":0,
+			"tags":["mpreview","valid","splunk_doc"]
+		},
+		"splunk_mpreview_4": {
+			"search":"| mpreview index=_metrics target_per_timeseries=5",
+			"exp_err":0,
+			"tags":["mpreview","valid","splunk_doc"]
+		},
+		"splunk_mstats_1": {
+			"search":"| mstats avg(aws.ec2.CPUUtilization) WHERE index=mymetricdata span=30s",
+			"exp_err":0,
+			"tags":["mstats","valid","splunk_doc"]
+		},
+		"splunk_mstats_2": {
+			"search":"| mstats avg(aws.ec2.CPUUtilization) avg(os.cpu.utilization) WHERE index=mymetricdata BY host span=1m",
+			"exp_err":0,
+			"tags":["mstats","valid","splunk_doc"]
+		},
+		"splunk_mstats_3": {
+			"search":"| mstats chart=t count(aws.ec2.CPUUtilization) WHERE index=mymetricdata by host span=1d chart.limit=top10",
+			"exp_err":0,
+			"tags":["mstats","valid","splunk_doc"]
+		},
+		"splunk_mstats_4": {
+			"search":"| mstats avg(aws.ec2.CPUUtilization) WHERE host=foo BY app",
+			"exp_err":0,
+			"tags":["mstats","valid","splunk_doc"]
+		},
+		"splunk_mstats_5": {
+			"search":"| mstats avg(os.mem.rss) AS \"AverageRSS\" max(os.mem.rss) AS \"MaxRSS\" avg(os.mem.vsz) AS \"AverageVMS\" max(os.mem.vsz) AS \"MaxVMS\" WHERE index=mymetricdata BY metric_name span=1m",
+			"exp_err":0,
+			"tags":["mstats","valid","splunk_doc"]
+		},
+		"splunk_mstats_6": {
+			"search":"| mstats median(aws.ec2.CPUUtilization) span=1m every=5m",
+			"exp_err":0,
+			"tags":["mstats","valid","splunk_doc"]
+		},
+		"splunk_mstats_7": {
+			"search":"| mstats rate(spl.intr.resource_usage.PerProcess.data.elapsed) as data.elapsed where index=_metrics BY _timeseries | rename _timeseries AS timeseries",
+			"exp_err":0,
+			"tags":["mstats","valid","splunk_doc","rename"]
+		},
+		"splunk_mstats_8": {
+			"search":"| mstats count(_value) WHERE metric_name=aws.ec2.CPUUtilization AND index=mymetricdata",
+			"exp_err":0,
+			"tags":["mstats","valid","splunk_doc"]
+		},
+		"splunk_multikv_1": {
+			"search":"index=idx | multikv fields COMMAND filter splunkd",
+			"exp_err":0,
+			"tags":["search","multikv","valid","splunk_doc"]
+		},
+		"splunk_multikv_2": {
+			"search":"index=idx | multikv fields pid command",
+			"exp_err":0,
+			"tags":["search","multikv","valid","splunk_doc"]
+		},
+		"splunk_multisearch_1": {
+			"search":"| multisearch [search index=a | eval type = \"foo\"] [search index=b | eval mytype = \"bar\"]",
+			"exp_err":0,
+			"tags":["multisearch","valid","splunk_doc"]
+		},
+		"splunk_mvcombine_1": {
+			"search":"index=* host=www* | stats max(bytes) AS max, min(bytes) AS min BY host | mvcombine host",
+			"exp_err":0,
+			"tags":["search","mvcombine","valid","splunk_doc","stats"]
+		},
+		"splunk_mvcombine_2": {
+			"search":"index=* host=www* | stats max(bytes) AS max, min(bytes) AS min BY host | mvcombine delim=\",\" host | nomv host",
+			"exp_err":0,
+			"tags":["search","mvcombine","valid","splunk_doc","stats","nomv"]
+		},
+		"splunk_mvcomine_3": {
+			"search":"sourcetype=\"WMI:WinEventLog:Security\" | fields EventCode, Category,RecordNumber | mvcombine delim=\",\" RecordNumber | nomv RecordNumber",
+			"exp_err":0,
+			"tags":["search","mvcombine","valid","splunk_doc","fields","nomv"]
+		},
+		"splunk_mvcomine_4": {
+			"search":"index=idx | mvcombine delim=\":\" foo",
+			"exp_err":0,
+			"tags":["search","mvcombine","valid","splunk_doc"]
+		},
+		"splunk_mvexpand_1": {
+			"search":"index=idx | mvexpand foo",
+			"exp_err":0,
+			"tags":["search","mvexpand","valid","splunk_doc"]
+		},
+		"splunk_mvexpand_2": {
+			"search":"index=idx | mvexpand foo limit=100",
+			"exp_err":0,
+			"tags":["search","mvexpand","valid","splunk_doc"]
+		},
+		"splunk_mvexpand_3": {
+			"search":"source=\"mvexpandData.csv\" | rex field=_raw \"a=(?<a>\\d+)\" max_match=5 | rex field=_raw \"b=(?<b>\\d+)\" max_match=5 | eval fields = mvzip(a,b) | table _time fields",
+			"exp_err":0,
+			"tags":["search","mvexpand","valid","splunk_doc","rex","eval","fields","table"]
+		},
+		"splunk_nomv_1": {
+			"search":"eventtype=\"sendmail\" | nomv senders | top senders",
+			"exp_err":0,
+			"tags":["search","nomv","valid","splunk_doc","top"]
+		},
 		"splunk_outlier_1": {
 			"search":"404 host=\"webserver\" | timechart avg(cpu_seconds) by host | outlier action=tf",
 			"exp_err":0,
@@ -1106,6 +1231,31 @@
 			"search":"index=idx | regex email=\"^([a-z0-9_\\.-]+)@([\\da-z\\.-]+)\\.([a-z\\.]{2,6})$\"",
 			"exp_err":0,
 			"tags":["search","regex","valid","splunk_doc"]
+		},
+		"splunk_rex_1": {
+			"search":"index=idx | rex field=test max_match=0 \"((?<field>[^$]*)\\$(?<value>[^,]*),?)\"",
+			"exp_err":0,
+			"tags":["search","rex","valid","splunk_doc"]
+		},
+		"splunk_rex_2": {
+			"search":"index=idx | rex field=test max_match=0 \"((?<field>[^$]*)\\$(?<value>[^,]*),?)\"",
+			"exp_err":0,
+			"tags":["search","rex","valid","splunk_doc"]
+		},
+		"splunk_rex_3": {
+			"search":"index=idx | rex field=savedsearch_id \"(?<user>\\w+);(?<app>\\w+);(?<SavedSearchName>\\w+)\"",
+			"exp_err":0,
+			"tags":["search","rex","valid","splunk_doc"]
+		},
+		"splunk_rex_4": {
+			"search":"index=idx | rex field=ccnumber mode=sed \"s/(\\d{4}-){3}/XXXX-XXXX-XXXX-/g\"",
+			"exp_err":0,
+			"tags":["search","rex","valid","splunk_doc"]
+		},
+		"splunk_rex_5": {
+			"search":"sourcetype=linux_secure port \"failed password\" | rex \"\\s+(?<ports>port \\d+)\" | top src_ip ports showperc=0",
+			"exp_err":0,
+			"tags":["search","rex","valid","splunk_doc","top"]
 		},
 		"splunk_streamstats_1": {
 			"search":"| makeresults count=3 | streamstats count | eval test=if(count==2,\"yes\",\"no\") | streamstats count as testCount reset_after=\"(\"match(test,\"yes\")\")\"",

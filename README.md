@@ -119,6 +119,13 @@ SPL commands specification is done in the `spl_commands.json` file
 | map | all args | | |
 | mcollect | all args | | makes sure index arg is provided |
 | metadata | all args | | makes sure type is arg is provide and has a correct value, provides the list of created fields |
+| metasearch | | | also gives the list of outputed fields |
+| meventcollect | all args | | makes sure index arg is provided |
+| mpreview | all args | | |
+| msearch | all args | | |
+| mstats | all args | | |
+| multikv | all args | | fields and filter are handled as specific selector in the arguments |
+| mulitsearch | | | |
 | outputcsv | all args | | |
 | outputlookup | all args | | |
 | regex | all args | | |
