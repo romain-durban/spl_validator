@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='index=idx | rex field=savedsearch_id \"(?<user>\\w+);(?<app>\\w+);(?<SavedSearchName>\\w+)\"'
+s='(index IN (abc-idx,abc-idx-more*) OR (index IN (abc,dbe-adv) tag=authentication tag=success tag=arg1 OR tag=arg2) ) '
 
 print(s)
 

@@ -12,8 +12,15 @@ macro_defs={}	# To cache the files import in case of repeated usages
 
 # Imports a macro conf file
 def loadFile(fpath):
+	# Splunk config files handle multiline values differently
+	# Need to replace \ by a newline followed by an indentation
+	f=open(fpath,"r")
+	fcontent=f.read()
+	fcontent=fcontent.replace("\\\n","\n\t")
+	f.close()
+	#---
 	config = configparser.ConfigParser()
-	config.read(fpath)
+	config.read_string(fcontent)
 	data={}
 	for s in config.sections():
 		data[s]=config[s]

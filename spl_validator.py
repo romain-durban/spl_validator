@@ -149,8 +149,8 @@ def t_error(t):
 precedence = (
     ('left', 'PLUS', 'MINUS'),
     ('left', 'TIMES', 'DIVIDE'),
-    ('right','OR_OP'),
     ('right','AND_OP'),
+    ('left','OR_OP'),
     ('right', 'UMINUS','NOT_OP')
 )
 
@@ -199,9 +199,10 @@ def p_search_exp(p):
 
 
 def p_subsearch(p):
-    '''subsearch : LBRACK new_scope commands RBRACK'''
+    '''subsearch : LBRACK new_scope commands RBRACK
+                 | LBRACK new_scope PIPE commands RBRACK'''
     global scope_level
-    p[0] = {"type":"subsearch","input":p[3]["input"],"output":p[3]["output"],"content":p[3]["content"]}
+    p[0] = {"type":"subsearch","input":p[len(p)-2]["input"],"output":p[len(p)-2]["output"],"content":p[len(p)-2]["content"]}
     scope_level = scope_level -1
 
 def p_subsearches(p):
@@ -225,50 +226,46 @@ def p_subpipeline(p):
 #---------------------------
 # FILTERS
 #---------------------------
+
+# Logical fields conditions
+
 def p_filters(p):
-    '''filters : filter filters
-               | filter'''
-    p[0] = {"type":"filters","input":p[1]["input"],"output":p[1]["output"],"content":[p[1]["value"]],"op":p[1]["op"]}
-    if len(p) == 3:
-        p[0]["input"] += p[2]["input"]
-        p[0]["output"] += p[2]["output"]
-        p[0]["content"] += p[2]["content"]
-        p[0]["op"] += p[2]["op"]
-
-# Logical conditions
-def p_filters_logic(p):
-    '''filters : filters_logic_exp'''
-    p[0] = {"type":"filters","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
-
-def p_filters_logic_exp(p):
-    '''filters_logic_exp : filters_logic_term AND_OP filters_logic_exp
-                         | filters_logic_term filters_logic_exp
-                         | filters_logic_term'''
+    '''filters : filters_logic_term OR_OP filters_logic_term
+               | filters_logic_term'''
     if len(p) == 4:
-        p[0] = {"type":"filters_logic_exp","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
-    elif len(p) == 3:
-        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"],"content":p[1]["content"]+p[2]["content"],"op":p[1]["op"] + ["and"] + p[2]["op"]}
+        p[0] = {"type":"filters","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
     else:
-        p[0] = {"type":"filters_logic_exp","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
+        p[0] = {"type":"filters","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
 
 def p_filters_logic_term(p):
-    '''filters_logic_term : filters_logic_factor OR_OP filters_logic_exp
+    '''filters_logic_term : filters_logic_factor AND_OP filters_logic_factor
+                          | filters_logic_factor filters_logic_factor
                           | filters_logic_factor'''
     if len(p) == 4:
         p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
+    elif len(p) == 3:
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"],"content":p[1]["content"]+p[2]["content"],"op":p[1]["op"] + ["and"] + p[2]["op"]}
     else:
         p[0] = {"type":"filters_logic_term","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
 
 def p_filters_logic_factor(p):
     '''filters_logic_factor : filter
+                            | filter filters_logic_factor
                             | NOT_OP filters_logic_factor
-                            | LPAREN filters_logic_exp RPAREN'''
-    if len(p) > 2:
-        p[0] = {"type":"filters_logic_factor","input":p[2]["input"],"output":p[2]["output"],"content":p[2]["content"],"op":p[2]["op"]}
-        if p[1] == "not":
-            p[0]["op"] = [p[1]] + p[0]["op"]
-    else:
+                            | LPAREN filters RPAREN'''
+    if isinstance(p[1],dict):
         p[0] = {"type":"filters_logic_factor","input":p[1]["input"],"output":p[1]["output"],"content":[p[1]["value"]],"op":[]}
+        if len(p) > 2:
+            p[0]["input"] += p[2]["input"]
+            p[0]["output"] += p[2]["output"]
+            p[0]["content"] += p[2]["content"]
+            p[0]["op"].append("and")
+    else:
+        if len(p) > 2:
+            p[0] = {"type":"filters_logic_factor","input":p[2]["input"],"output":p[2]["output"],"content":p[2]["content"],"op":p[2]["op"]}
+            if p[1] == "not":
+                p[0]["op"] = [p[1]] + p[0]["op"]
+        
 # ---
 
 def p_filter_eq(p):
