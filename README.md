@@ -128,6 +128,10 @@ SPL commands specification is done in the `spl_commands.json` file
 | mulitsearch | | | |
 | outputcsv | all args | | |
 | outputlookup | all args | | |
+| outputtext | all args | | |
+| pivot | all args | | |
+| predict | all args | cannot yet recognize multiple fields using multiple algos because this is too ambiguous | recognizing correctly fields like upper95 |
+| rangemap | all args | | |
 | regex | all args | | |
 | rename | | | |
 | reverse | | | |

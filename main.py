@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='(index IN (abc-idx,abc-idx-more*) OR (index IN (abc,dbe-adv) tag=authentication tag=success tag=arg1 OR tag=arg2) ) '
+s='source=all_month.csv place=*alaska* mag>=3.5 | stats count BY mag | rename mag AS magnitude | rangemap field=magnitude green=3.9-4.2 yellow=4.3-4.6 red=4.7-5.0 default=gray | stats sum(count) by range | eval sort_field=case(range=\"red\",1, range=\"yellow\",2, range=\"green\",3, range=\"gray\",4) | sort sort_field'
 
 print(s)
 

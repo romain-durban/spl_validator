@@ -45,7 +45,19 @@ reserved = {
     'case':'CASE_OP',
     'term':'TERM_OP',
     'over':'OVER_OP',
-    'bottom':'BOTTOM_OP'
+    'bottom':'BOTTOM_OP',
+    'splitrow': 'SPLITROW_OP',
+    'splitcol':'SPLITCOL_OP',
+    'filter': 'FILTER_OP',
+    'limit': 'LIMIT_OP',
+    'rowsummary': 'ROWSUMMARY_OP',
+    'colsummary': 'COLSUMMARY_OP',
+    'showother': 'SHOWOTHER_OP',
+    'numcols': 'NUMCOLS_OP',
+    'range': 'RANGE_OP',
+    'period': 'PERIOD_OP',
+    'truelabel': 'TRUELABEL_OP',
+    'falselabel': 'FALSELABEL_OP'
 }
 
 tokens = [
@@ -117,9 +129,12 @@ def t_NAME(t):
     r'([a-zA-Z0-9_\{\}]*<<[a-zA-Z0-9_\{\}]+>>[a-zA-Z0-9_\{\}]*|[a-zA-Z0-9_\{\}/][a-zA-Z0-9_\.\{\}\-:/]*)'
     global cmd_conf
     if t.value.lower() in cmd_conf:
+        t.value = t.value.lower()
         t.type = cmd_conf[t.value.lower()]["token_name"]    # Check for command names, lowercase
     else:
         t.type = reserved.get(t.value.lower(),"NAME")       # Check for reserved words, lowercase
+        if not t.type == "NAME":
+            t.value = t.value.lower()
     if t.value.isdigit():
         t.type = "NUMBER"
     if re.match(r'^\d+\.\d+$', t.value):
@@ -147,6 +162,7 @@ def t_error(t):
 # Parsing rules
 
 precedence = (
+    ('left', 'EQ', 'NEQ', 'COMP_OP', 'DEQ'),
     ('left', 'PLUS', 'MINUS'),
     ('left', 'TIMES', 'DIVIDE'),
     ('right','AND_OP'),
@@ -571,6 +587,10 @@ def p_commands_names(p):
                       | CMD_OUTLIER
                       | CMD_OUTPUTCSV
                       | CMD_OUTPUTLOOKUP
+                      | CMD_OUTPUTTEXT
+                      | CMD_PIVOT
+                      | CMD_PREDICT
+                      | CMD_RANGEMAP
                       | CMD_REGEX
                       | CMD_RENAME
                       | CMD_REVERSE
@@ -589,20 +609,28 @@ def p_commands_names(p):
     p[0] = p[1]
 
 def p_op_names(p):
-    '''op_names : AS_CLAUSE
-                | BY_CLAUSE
-                | SORTBY_CLAUSE
-                | OR_OP
-                | AND_OP
-                | NOT_OP
+    '''op_names : SORTBY_CLAUSE
                 | OUTPUT_OP
                 | OUTPUT_NEW_OP
-                | IN_OP
-                | NOTIN_OP
                 | CASE_OP
                 | TERM_OP
                 | OVER_OP
-                | BOTTOM_OP'''
+                | BOTTOM_OP
+                | SPLITROW_OP
+                | SPLITCOL_OP
+                | FILTER_OP
+                | LIMIT_OP
+                | ROWSUMMARY_OP
+                | COLSUMMARY_OP
+                | SHOWOTHER_OP
+                | NUMCOLS_OP
+                | RANGE_OP
+                | PERIOD_OP
+                | TRUELABEL_OP
+                | FALSELABEL_OP
+                '''
+    # Excluding some more basic operators which are not supposed to be found elsewhere
+    # Such as IN or AND or NOT and so on
     p[0] = p[1]
 
 # SEARCH COMMAND
@@ -697,7 +725,9 @@ def p_command_rename(p):
 # SORT
 def p_command_sort(p):
     '''command : CMD_SORT NUMBER sort_clause
-               | CMD_SORT sort_clause'''
+               | CMD_SORT sort_clause
+               | CMD_SORT NUMBER sort_clause NAME
+               | CMD_SORT sort_clause NAME'''
     if len(p) == 4:
         p[0] = {"type":"command","input":p[3]["input"],"output":p[3]["output"],"fields-effect":"none"}
     else:
@@ -774,7 +804,8 @@ def p_command_basic_no_field(p):
                | CMD_MAKERESULTS
                | CMD_OUTLIER
                | CMD_KMEANS
-               | CMD_MPREVIEW'''
+               | CMD_MPREVIEW
+               | CMD_OUTPUTTEXT'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -790,7 +821,8 @@ def p_command_basic_single_arg(p):
     '''command : CMD_ANALYSEFIELDS args_term
                | CMD_APPENDPIPE args_term
                | CMD_CEFOUT args_term
-               | CMD_HISTORY args_term'''
+               | CMD_HISTORY args_term
+               | CMD_OUTPUTTEXT args_term'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
     p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
@@ -945,6 +977,9 @@ def commands_args_and_fields_output_update(p,args):
                 out["content"].append(args["index"])
         if "filter" in args:
             out["content"].append(args["filter"])
+    elif p[1] == "outputtext":
+        out["output"] += cmd_conf[p[1]]["created_fields"]
+
     return out
 
 # WHERE
@@ -1705,22 +1740,22 @@ def p_command_mstats_2_by(p):
 
 # MULTIKV
 def p_command_multikv(p):
-    '''command : CMD_MULTIKV args_list CMD_FIELDS fields_list args_list NAME values_list args_list
-               | CMD_MULTIKV args_list CMD_FIELDS fields_list args_list NAME values_list
-               | CMD_MULTIKV args_list CMD_FIELDS fields_list NAME values_list args_list
+    '''command : CMD_MULTIKV args_list CMD_FIELDS fields_list args_list FILTER_OP values_list args_list
+               | CMD_MULTIKV args_list CMD_FIELDS fields_list args_list FILTER_OP values_list
+               | CMD_MULTIKV args_list CMD_FIELDS fields_list FILTER_OP values_list args_list
                | CMD_MULTIKV CMD_FIELDS fields_list args_list NAME values_list args_list
-               | CMD_MULTIKV CMD_FIELDS fields_list NAME values_list args_list
-               | CMD_MULTIKV args_list CMD_FIELDS fields_list NAME values_list
-               | CMD_MULTIKV CMD_FIELDS fields_list args_list NAME values_list
-               | CMD_MULTIKV CMD_FIELDS fields_list NAME values_list
+               | CMD_MULTIKV CMD_FIELDS fields_list FILTER_OP values_list args_list
+               | CMD_MULTIKV args_list CMD_FIELDS fields_list FILTER_OP values_list
+               | CMD_MULTIKV CMD_FIELDS fields_list args_list FILTER_OP values_list
+               | CMD_MULTIKV CMD_FIELDS fields_list FILTER_OP values_list
                | CMD_MULTIKV args_list CMD_FIELDS fields_list args_list
                | CMD_MULTIKV args_list CMD_FIELDS fields_list
                | CMD_MULTIKV CMD_FIELDS fields_list args_list
                | CMD_MULTIKV CMD_FIELDS fields_list
-               | CMD_MULTIKV args_list NAME values_list args_list
-               | CMD_MULTIKV NAME values_list args_list
-               | CMD_MULTIKV args_list NAME values_list
-               | CMD_MULTIKV NAME values_list
+               | CMD_MULTIKV args_list FILTER_OP values_list args_list
+               | CMD_MULTIKV FILTER_OP values_list args_list
+               | CMD_MULTIKV args_list FILTER_OP values_list
+               | CMD_MULTIKV FILTER_OP values_list
                | CMD_MULTIKV args_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     args={}
@@ -1776,6 +1811,183 @@ def p_command_outputlookup(p):
         elif pp["type"] == "field_name":
             p[0]["content"].append(pp["field"])
     checkArgs(p,args)
+
+# PIVOT
+def p_command_pivot(p):
+    '''command : CMD_PIVOT field_name field_name pivot_element'''
+    p[0] = {"type":"command","input":p[4]["input"],"output":p[4]["output"],"fields-effect":"generate","content":[p[2]["field"],p[3]["field"]]+p[4]["content"]}
+
+    checkArgs(p,p[4]["args"])
+
+def p_command_pivot_element(p):
+    '''pivot_element : pivot_cell_value pivot_split pivot_element_2
+                     | pivot_cell_value COMMA pivot_split COMMA pivot_element_2
+                     | pivot_cell_value pivot_split
+                     | pivot_cell_value COMMA pivot_split
+                     | pivot_cell_value'''
+    p[0] = {"type":"pivot_element","input":[],"output":[],"content":[],"args":{}}
+    for pp in p[1:]:
+        if isinstance(pp,dict):
+            extendDict(p[0]["args"],pp["args"])
+            p[0]["input"] += pp["input"]
+            p[0]["output"] += pp["output"]
+            p[0]["content"] += pp["content"]
+
+def p_command_pivot_cell_value(p):
+    '''pivot_cell_value : NAME LPAREN field_name RPAREN AS_CLAUSE field_name
+                        | NAME LPAREN field_name RPAREN'''
+    p[0] = {"type":"pivot_cell_value","input":[p[3]["field"]],"output":[],"content":[],"args":{}}
+    if len(p) > 5:
+        p[0]["output"].append(p[len(p)-1]["field"])
+
+def p_command_pivot_split(p):
+    '''pivot_split : pivot_splitcol COMMA pivot_split
+                   | pivot_splitrow COMMA pivot_split
+                   | pivot_splitcol pivot_split
+                   | pivot_splitrow pivot_split
+                   | pivot_splitcol
+                   | pivot_splitrow'''
+    p[0] = {"type":"pivot_split","input":[],"output":[],"content":[],"args":{}}
+    for pp in p[1:]:
+        if isinstance(pp,dict):
+            extendDict(p[0]["args"],pp["args"])
+            p[0]["input"] += pp["input"]
+            p[0]["output"] += pp["output"]
+            p[0]["content"] += pp["content"]
+
+def p_command_pivot_splitcol(p):
+    '''pivot_splitcol : SPLITCOL_OP field_name RANGE_OP basic_args_list
+                      | SPLITCOL_OP field_name PERIOD_OP NAME
+                      | SPLITCOL_OP field_name TRUELABEL_OP field_name FALSELABEL_OP field_name
+                      | SPLITCOL_OP field_name TRUELABEL_OP field_name
+                      | SPLITCOL_OP field_name FALSELABEL_OP field_name
+                      | SPLITCOL_OP field_name'''
+    p[0] = {"type":"pivot_splitcol","input":[p[2]["field"]],"output":[p[2]["field"]],"content":[],"args":{}}
+    if len(p) > 3:
+        if not isinstance(p[4],dict):
+            p[0]["content"].append(p[4])
+        elif p[4]["type"] == "field_name":
+            p[0]["content"].append(p[4]["field"])
+        elif p[4]["type"] == "basic_args_list":
+            extendDict(p[0]["args"],p[4]["args"])
+    if len(p) > 5:
+        p[0]["content"].append(p[6]["field"])
+
+def p_command_pivot_splitrow(p):
+    '''pivot_splitrow : SPLITROW_OP field_name RANGE_OP basic_args_list
+                      | SPLITROW_OP field_name PERIOD_OP NAME
+                      | SPLITROW_OP field_name TRUELABEL_OP field_name FALSELABEL_OP field_name
+                      | SPLITROW_OP field_name TRUELABEL_OP field_name
+                      | SPLITROW_OP field_name FALSELABEL_OP field_name
+                      | SPLITROW_OP field_name
+                      | SPLITROW_OP field_name AS_CLAUSE field_name RANGE_OP args_list
+                      | SPLITROW_OP field_name AS_CLAUSE field_name PERIOD_OP NAME
+                      | SPLITROW_OP field_name AS_CLAUSE field_name TRUELABEL_OP field_name FALSELABEL_OP field_name
+                      | SPLITROW_OP field_name AS_CLAUSE field_name TRUELABEL_OP field_name
+                      | SPLITROW_OP field_name AS_CLAUSE field_name FALSELABEL_OP field_name
+                      | SPLITROW_OP field_name AS_CLAUSE field_name'''
+    p[0] = {"type":"pivot_splitrow","input":[p[2]["field"]],"output":[p[2]["field"]],"content":[],"args":{}}
+    if len(p) > 3:
+        for i in range(4,len(p)):
+            pp=p[i]
+            if isinstance(pp,dict):
+                if pp["type"] == "basic_args_list":
+                    extendDict(p[0]["args"],pp["args"])
+                elif pp["type"] == "field_name":
+                    if p[i-1] == "as":
+                        p[0]["output"]=[pp["field"]]
+                    else:
+                        p[0]["content"].append(pp["field"])
+            elif p[i-1] == "period":
+                p[0]["content"].append(pp)
+
+def p_command_pivot_element_2(p):
+    '''pivot_element_2 : pivot_element_term pivot_element_2
+                       | pivot_element_term'''
+    p[0] = {"type":"pivot_element_2","input":[],"output":[],"content":[],"args":{}}
+    for pp in p[1:]:
+        extendDict(p[0]["args"],pp["args"])
+        p[0]["input"] += pp["input"]
+        p[0]["output"] += pp["output"]
+        p[0]["content"] += pp["content"]
+
+def p_command_pivot_element_term(p):
+    '''pivot_element_term : FILTER_OP field_name COMP_OP value
+                          | FILTER_OP field_name IN_OP value
+                          | FILTER_OP field_name NAME value
+                          | LIMIT_OP field_name BY_CLAUSE CMD_TOP NUMBER NAME LPAREN field_name RPAREN
+                          | LIMIT_OP field_name BY_CLAUSE BOTTOM_OP NUMBER NAME LPAREN field_name RPAREN
+                          | ROWSUMMARY_OP NAME
+                          | COLSUMMARY_OP NAME
+                          | SHOWOTHER_OP NAME
+                          | CMD_SORT NUMBER sort_clause
+                          | CMD_SORT sort_clause
+                          | CMD_SORT NUMBER sort_clause NAME
+                          | CMD_SORT sort_clause NAME '''
+    p[0] = {"type":"pivot_element_term","input":[],"output":[],"content":[],"args":{}}
+    op=p[1]
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "field_name":
+                p[0]["input"].append(pp["field"])
+            elif pp["type"] == "sort_clause":
+                p[0]["input"] += pp["input"]
+
+# PREDICT
+def p_command_predict(p):
+    '''command : CMD_PREDICT predict_list'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","content":[]}
+    args={}
+    p[0]["input"] += p[2]["input"]
+    p[0]["output"] += p[2]["output"]
+    extendDict(args,p[2]["args"])
+    todel={}
+    for arg in args:
+        if re.match("^(upper|lower)\d{2}$",arg):    #looking to replace fields like upper95 by upperXX
+            arg_name=arg[:len(arg)-2]+"XX"
+            todel[arg]=arg_name
+            p[0]["output"].append(args[arg])
+        if arg in ["correlate","suppress"]:
+            p[0]["input"].append(args[arg])
+    # Renaming the fields in the dictionary
+    for td in todel:
+        args[todel[td]]=args[td]
+        del args[td]
+    checkArgs(p,args)
+
+def p_command_predict_list(p):
+    '''predict_list : predict_list field_name args_list
+                    | predict_list rfield_term args_list
+                    | predict_list fields_list
+                    | predict_list rfields_list
+                    | fields_list args_list
+                    | rfields_list args_list
+                    | fields_list
+                    | rfields_list'''
+    p[0] = {"type":"predict_list","input":[],"output":[],"fields-effect":"extend","content":[],"args":{}}
+    for pp in p[1:]:
+        if pp["type"] == "args_list":
+            extendDict(p[0]["args"],pp["args"])
+        elif pp["type"] == "field_name":
+            p[0]["input"].append(pp["field"])
+        elif pp["type"]  in ["rfield_term","fields_list","rfields_list"]:
+            p[0]["input"] += pp["input"]
+            p[0]["output"] += pp["output"]
+        elif pp["type"] == "predict_list":
+            p[0]["input"] += pp["input"]
+            p[0]["output"] += pp["output"]
+            extendDict(p[0]["args"],pp["args"])
+
+# RANGEMAP
+def p_command_rangemap(p):
+    '''command : CMD_RANGEMAP args_list'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    for arg in p[2]["args"]:
+        if not arg in cmd_conf[p[1]]["args"]:
+            p[0]["input"].append(arg)
+        elif arg == "field":
+            p[0]["input"].append(p[2]["args"][arg])
+        p[0]["content"].append(p[2]["args"][arg])
 
 # REGEX
 def p_command_regex(p):
@@ -1947,7 +2159,6 @@ def extendDict(a,b):
 def filterFields(flist,pattern):
     return fnmatch.filter(flist,pattern)
 
-
 #---------------------------
 # AGGREGATION fields
 #---------------------------
@@ -2051,7 +2262,8 @@ def p_field_name(p):
     '''field_name : NAME
                   | PATTERN
                   | STRING
-                  | commands_names'''
+                  | commands_names
+                  | op_names'''
     p[0] = {"type":"field_name","field":p[1]}
 
 def p_field_name_agg_fun(p):
@@ -2101,18 +2313,20 @@ def p_args_list(p):
 def p_args_term(p):
     '''args_term : NAME EQ args_value
                  | commands_names EQ args_value
-                 | OUTPUT_OP EQ args_value'''
+                 | op_names EQ args_value'''
     # Command names have to be allowed as argument names for cases
     # like append which can be both a command or an argument
     p[0] = {"type":"args_term","args":{}}
-    p[0]["args"][p[1]]=p[3]["value"]
+    p[0]["args"][p[1].lower()]=p[3]["value"]
 
 def p_args_value(p):
     '''args_value : value
                   | eval_expr_fun_value
                   | expr_fun_call
                   | TIMES
-                  | chart_limit'''
+                  | chart_limit
+                  | op_names
+                  | commands_names'''
     p[0] = {"type":"args_value","value":""}
     if "type" in p[1]:
         if p[1]["type"] == "eval_expr_fun_value":
@@ -2121,6 +2335,18 @@ def p_args_value(p):
             p[0]["value"] = p[1]["value"]
     else:
         p[0]["value"] = p[1]
+
+def p_command_basic_args_list(p):
+    '''basic_args_list : basic_args_list basic_args_term
+                       | basic_args_term'''
+    p[0] = {"type":"pivot_args_list","input":[],"output":[],"content":[],"args":p[1]["args"]}
+    if len(p) > 2:
+        extendDict(p[0]["args"],p[2]["args"])
+
+def p_command_pbasic_args_term(p):
+    '''basic_args_term : NAME EQ args_value'''
+    p[0] = {"type":"basic_args_term","input":[],"output":[],"content":[],"args":{}}
+    p[0]["args"][p[1].lower()]=p[3]["value"]
 
 def p_command_chart_limit(p):
     '''chart_limit : BOTTOM_OP NUMBER
@@ -2146,7 +2372,8 @@ def p_value_string(p):
              | STRING
              | NAME
              | PATTERN
-             | QUOTE QUOTE"""
+             | QUOTE QUOTE
+             | op_names"""
     p[0] = {"type":"value","value":""}
     if len(p) == 4:
         p[0]["value"] = p[2]
