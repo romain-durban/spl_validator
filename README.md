@@ -132,10 +132,21 @@ SPL commands specification is done in the `spl_commands.json` file
 | pivot | all args | | |
 | predict | all args | cannot yet recognize multiple fields using multiple algos because this is too ambiguous | recognizing correctly fields like upper95 |
 | rangemap | all args | | |
+| rare | all args | | |
+| redistribute | all args | | |
 | regex | all args | | |
+| relevancy | | | |
+| reltime | | | |
 | rename | | | |
+| replace | | | |
+| require | | | |
+| rest | all args | | |
+| return | | | |
 | reverse | | | |
+| run | all args | | |
+| script | all args | | |
 | search | accidently most args | probably args with special characters | |
+| sendemail | all args | | |
 | sort | | | |
 | stats | first group of args | arg after group by | |
 | table | | | |

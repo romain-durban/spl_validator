@@ -41,6 +41,7 @@ reserved = {
     'output': 'OUTPUT_OP',
     'outputnew': 'OUTPUT_NEW_OP',
     'in':'IN_OP',
+    'with':'WITH_OP',
     'notin':'NOTIN_OP',
     'case':'CASE_OP',
     'term':'TERM_OP',
@@ -103,10 +104,6 @@ def t_newline(t):
     r'\n+'
     t.lexer.lineno += t.value.count("\n")
 
-def t_TIMESPECIFIER(t):
-    r'[0-9a-zA-Z\+\-]*@[0-9a-zA-Z\+\-]+'
-    return t
-
 def t_DATE(t):
     r'\d+/\d+/\d+(:\d+:\d+:\d+)?'
     return t
@@ -117,7 +114,7 @@ def t_PATTERN(t):
     return t
 
 def t_STRING(t):
-    r'("([^"]*\\"[^"]*\\"[^"]*|[^"]+)"|\'([^\']*\\\'[^"]*\\\'[^\']*|[^\']+)\')'
+    r'("([^"]*\\"[^"]*\\"[^"]*|[^"]+)"|\'([^\']*\\\'[^"]*\\\'[^\']*|[^\']+)\'|""|\'\')'
     t.value=t.value[1:-1]
     if t.value == "(":
         t.type = "QLPAREN"
@@ -126,7 +123,7 @@ def t_STRING(t):
     return t
 
 def t_NAME(t):
-    r'([a-zA-Z0-9_\{\}]*<<[a-zA-Z0-9_\{\}]+>>[a-zA-Z0-9_\{\}]*|[a-zA-Z0-9_\{\}/][a-zA-Z0-9_\.\{\}\-:/]*)'
+    r'([a-zA-Z0-9_\{\}/]*<<[a-zA-Z0-9_\{\}/@]+>>[a-zA-Z0-9_\{\}/]*|[a-zA-Z0-9_\{\}/\$][a-zA-Z0-9_\.\{\}\-:/@]*)'
     global cmd_conf
     if t.value.lower() in cmd_conf:
         t.value = t.value.lower()
@@ -139,6 +136,10 @@ def t_NAME(t):
         t.type = "NUMBER"
     if re.match(r'^\d+\.\d+$', t.value):
         t.type = "FLOAT"
+    return t
+
+def t_TIMESPECIFIER(t):
+    r'[0-9a-zA-Z\+\-]*@[0-9a-zA-Z\+\-]+ '
     return t
 
 def t_FLOAT(t):
@@ -316,8 +317,12 @@ def p_filter_phrases(p):
     p[0] = {"type":"filter_phrase","input":[],"output":[],"value":p[3],"op":[p[1]]}
 
 def p_filter_any(p):
-    'filter : NAME EQ TIMES'
-    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3],"op":[p[2]]}
+    '''filter : NAME EQ TIMES
+              | TIMES'''
+    if len(p) > 2:
+        p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3],"op":[p[2]]}
+    else:
+        p[0] = {"type":"filter","input":[],"output":[],"value":p[1],"op":[]}
 
 def p_filter_notany(p):
     'filter : NAME NEQ TIMES'
@@ -591,11 +596,22 @@ def p_commands_names(p):
                       | CMD_PIVOT
                       | CMD_PREDICT
                       | CMD_RANGEMAP
+                      | CMD_RARE
+                      | CMD_REDISTRIBUTE
                       | CMD_REGEX
+                      | CMD_RELEVANCY
+                      | CMD_RELTIME
                       | CMD_RENAME
+                      | CMD_REPLACE
+                      | CMD_REQUIRE
+                      | CMD_REST
+                      | CMD_RETURN
                       | CMD_REVERSE
                       | CMD_REX
+                      | CMD_RTORDER
+                      | CMD_SCRIPT
                       | CMD_SEARCH
+                      | CMD_SENDEMAIL
                       | CMD_SORT
                       | CMD_STATS
                       | CMD_STREAMSTATS
@@ -805,7 +821,11 @@ def p_command_basic_no_field(p):
                | CMD_OUTLIER
                | CMD_KMEANS
                | CMD_MPREVIEW
-               | CMD_OUTPUTTEXT'''
+               | CMD_OUTPUTTEXT
+               | CMD_RELEVANCY
+               | CMD_RELTIME
+               | CMD_REQUIRE
+               | CMD_RTORDER'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -844,7 +864,9 @@ def p_command_basic_only_args(p):
                | CMD_KVFORM args_list
                | CMD_LOCALIZE args_list
                | CMD_METADATA args_list
-               | CMD_MPREVIEW args_list'''
+               | CMD_MPREVIEW args_list
+               | CMD_RTORDER args_list
+               | CMD_SENDEMAIL args_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
     p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
@@ -872,7 +894,8 @@ def p_command_basic_args_and_fields(p):
                | CMD_OUTLIER command_params_fields_or_args
                | CMD_KMEANS command_params_fields_or_args
                | CMD_MCOLLECT command_params_fields_or_args
-               | CMD_MEVENTCOLLECT command_params_fields_or_args'''
+               | CMD_MEVENTCOLLECT command_params_fields_or_args
+               | CMD_SCRIPT command_params_fields_or_args'''
     p[0] = {"type":"command","input":p[2]["fields"],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
     p[0] = commands_args_and_fields_output_update(p,p[2]["args"])
@@ -977,8 +1000,15 @@ def commands_args_and_fields_output_update(p,args):
                 out["content"].append(args["index"])
         if "filter" in args:
             out["content"].append(args["filter"])
-    elif p[1] == "outputtext":
+    elif p[1] in ["outputtext","relevancy","reltime"]:
+        out["fields-effect"] = "extend"
         out["output"] += cmd_conf[p[1]]["created_fields"]
+    elif p[1] in ["script","run"]:
+        out["content"] = out["input"]
+        out["input"] = []
+    elif p[1] == "sendemail":
+        if not "to" in args:
+            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Missing 'to' argument in command {}".format(p[1]),None,value="to")
 
     return out
 
@@ -1989,6 +2019,42 @@ def p_command_rangemap(p):
             p[0]["input"].append(p[2]["args"][arg])
         p[0]["content"].append(p[2]["args"][arg])
 
+# RARE
+def p_command_rare(p):
+    '''command : CMD_RARE args_list fields_list BY_CLAUSE fields_list args_list
+               | CMD_RARE args_list fields_list BY_CLAUSE fields_list
+               | CMD_RARE fields_list BY_CLAUSE fields_list args_list
+               | CMD_RARE fields_list BY_CLAUSE fields_list
+               | CMD_RARE args_list fields_list args_list
+               | CMD_RARE args_list fields_list
+               | CMD_RARE fields_list args_list
+               | CMD_RARE fields_list'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "fields_list":
+                p[0]["input"] += pp["input"]
+    checkArgs(p,args)
+
+# REDISTRIBUTE
+def p_command_redistribute(p):
+    '''command : CMD_REDISTRIBUTE args_term BY_CLAUSE fields_list
+               | CMD_REDISTRIBUTE BY_CLAUSE fields_list args_term
+               | CMD_REDISTRIBUTE BY_CLAUSE fields_list
+               | CMD_REDISTRIBUTE args_term
+               | CMD_REDISTRIBUTE'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    if len(p) > 2:
+        for pp in p[2:]:
+            if isinstance(pp,dict):
+                if pp["type"] == "args_term":
+                    checkArgs(p,pp["args"])
+                elif pp["type"] == "fields_list":
+                    p[0]["input"] += pp["input"]
+
 # REGEX
 def p_command_regex(p):
     '''command : CMD_REGEX field_name EQ STRING
@@ -1997,6 +2063,73 @@ def p_command_regex(p):
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[p[len(p)-1]]}
     if isinstance(p[2],dict):
         p[0]["input"].append(p[2]["field"])
+
+# REPLACE
+def p_command_replace(p):
+    '''command : CMD_REPLACE replace_list IN_OP fields_list
+               | CMD_REPLACE replace_list'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "fields_list":
+                p[0]["input"] += pp["input"]
+            elif pp["type"] == "replace_list":
+                p[0]["content"] += pp["content"]
+
+def p_command_replace_term(p):
+    '''replace_list : replace_list value WITH_OP value
+                    | replace_list COMMA value WITH_OP value
+                    | value WITH_OP value'''
+    p[0] = {"type":"replace_list","input":[],"output":[],"content":[]}
+    for pp in p[1:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "value":
+                p[0]["content"].append(pp["value"])
+            elif pp["type"] == "replace_list":
+                p[0]["content"] += pp["content"]
+
+# REST
+def p_command_rest(p):
+    '''command : CMD_REST args_list NAME args_list
+               | CMD_REST args_list NAME
+               | CMD_REST NAME args_list
+               | CMD_REST NAME'''
+    p[0] = {"type":"replace_list","input":[],"output":[],"fields-effect":"generate","content":[]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+        else:
+            p[0]["content"].append(pp)
+    for arg in args:
+        if not arg in cmd_conf[p[1]]["args"]:
+            p[0]["input"].append(args[arg])
+
+# RETURN
+def p_command_return(p):
+    '''command : CMD_RETURN NUMBER args_list fields_list args_list
+               | CMD_RETURN NUMBER args_list fields_list
+               | CMD_RETURN NUMBER fields_list args_list
+               | CMD_RETURN NUMBER fields_list
+               | CMD_RETURN NUMBER args_list
+               | CMD_RETURN args_list fields_list args_list
+               | CMD_RETURN args_list fields_list
+               | CMD_RETURN fields_list args_list
+               | CMD_RETURN fields_list
+               | CMD_RETURN args_list
+               | CMD_RETURN'''
+    p[0] = {"type":"replace_list","input":[],"output":["search"],"fields-effect":"generate","content":[]}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                p[0]["input"] += list(pp["args"].keys())
+            elif pp["type"] == "fields_list":
+                for f in pp["input"]:
+                    if f[0] == "$":
+                        p[0]["input"].append(f[1:]) #reformating $field
+                    else:
+                        p[0]["input"].append(f)
 
 # REX
 def p_command_rex(p):
@@ -2333,6 +2466,8 @@ def p_args_value(p):
             p[0]["value"] = p[1]["content"]
         elif p[1]["type"] == "value":
             p[0]["value"] = p[1]["value"]
+        elif "content" in p[1]:
+            p[0]["value"] = p[1]["content"]
     else:
         p[0]["value"] = p[1]
 
@@ -2402,6 +2537,10 @@ def p_values_list(p):
         p[0]["values"] = p[1]["values"] + [p[3]["value"]]
     else:
         p[0]["values"].append(p[1]["value"])
+
+def p_value_subsearch(p):
+    'value : subsearch'
+    p[0] = {"type":"value","value":"[...]"}
 
 '''
 def p_empty(p):
