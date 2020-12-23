@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='index=idx | eval test=test("\\"","")'
+s='index=idx event{}.params{}.value="text text" ([| inputlookup test] OR ("test{}.test{}.test_test"=true [| inputlookup test2]))'
 
 print(s)
 

@@ -256,11 +256,12 @@ def p_filters(p):
         p[0] = {"type":"filters","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
 
 def p_filters_logic_term(p):
-    '''filters_logic_term : filters_logic_factor AND_OP filters_logic_factor
-                          | filters_logic_factor filters_logic_factor
+    '''filters_logic_term : filters_logic_term AND_OP filters_logic_factor
+                          | filters_logic_term COMMA filters_logic_factor
+                          | filters_logic_term filters_logic_factor
                           | filters_logic_factor'''
     if len(p) == 4:
-        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + ["and"] + p[3]["op"]}
     elif len(p) == 3:
         p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"],"content":p[1]["content"]+p[2]["content"],"op":p[1]["op"] + ["and"] + p[2]["op"]}
     else:
@@ -269,14 +270,16 @@ def p_filters_logic_term(p):
 def p_filters_logic_factor(p):
     '''filters_logic_factor : filter
                             | filter filters_logic_factor
+                            | filter COMMA filters_logic_factor
+                            | filter AND_OP filters_logic_factor
                             | NOT_OP filters_logic_factor
                             | LPAREN filters RPAREN'''
     if isinstance(p[1],dict):
         p[0] = {"type":"filters_logic_factor","input":p[1]["input"],"output":p[1]["output"],"content":[p[1]["value"]],"op":[]}
         if len(p) > 2:
-            p[0]["input"] += p[2]["input"]
-            p[0]["output"] += p[2]["output"]
-            p[0]["content"] += p[2]["content"]
+            p[0]["input"] += p[len(p)-1]["input"]
+            p[0]["output"] += p[len(p)-1]["output"]
+            p[0]["content"] += p[len(p)-1]["content"]
             p[0]["op"].append("and")
     else:
         if len(p) > 2:
@@ -391,6 +394,11 @@ def p_expression_logic_factor(p):
             s += pp
     p[0] = {"type":"expression_logic_factor","content":s,"input":[],"output":[]}
 
+def p_expression_logic_factor_in(p):
+    '''expression_logic_factor : expression_value IN_OP LPAREN values_list RPAREN'''
+    s="{} IN ({})".format(p[1]["content"],",".join(p[4]["values"]))
+    p[0] = {"type":"expression_logic_factor","input":[],"output":[],"content":s}
+
 def p_expression_value(p):
     '''expression_value : expr_fun_call
                         | value'''
@@ -413,6 +421,7 @@ def p_expression_binop(p):
                         | expression_value DIVIDE expression_value
                         | expression_value DEQ expression_value
                         | expression_value EQ expression_value
+                        | expression_value NEQ expression_value
                         | expression_value COMP_OP expression_value
                         | expression_value MOD expression_value
                         | expression_value DOT expression_value
@@ -887,8 +896,7 @@ def p_command_basic_only_fields(p):
     '''command : CMD_TABLE fields_list
                | CMD_FILLDOWN fields_list
                | CMD_HIGHLIGHT fields_list
-               | CMD_ICONIFY fields_list
-               | CMD_SELFJOIN fields_list'''
+               | CMD_ICONIFY fields_list'''
     p[0] = {"type":"command","input":p[2]["input"],"output":[],"fields-effect":"none","content":[]}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -908,7 +916,7 @@ def p_command_basic_args_and_fields(p):
                | CMD_MCOLLECT command_params_fields_or_args
                | CMD_MEVENTCOLLECT command_params_fields_or_args
                | CMD_SCRIPT command_params_fields_or_args
-               | CMD_SELFJOIN    command_params_fields_or_args'''
+               | CMD_SELFJOIN command_params_fields_or_args'''
     p[0] = {"type":"command","input":p[2]["fields"],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
     p[0] = commands_args_and_fields_output_update(p,p[2]["args"])
@@ -1028,7 +1036,7 @@ def commands_args_and_fields_output_update(p,args):
 # WHERE
 def p_command_where(p):
     'command : CMD_WHERE expression'
-    p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"none","content":p[2]["content"]}
+    p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"none","content":[p[2]["content"]]}
 
 # ACCUM
 def p_command_accum(p):
@@ -2350,15 +2358,23 @@ def p_agg_terms_list(p):
 
 def p_agg_term(p):
     '''agg_term : NAME LPAREN agg_term_arg RPAREN AS_CLAUSE field_name
+                | NAME LPAREN agg_term_arg RPAREN AS_CLAUSE TIMES
                 | NAME LPAREN agg_term_arg RPAREN
                 | NAME AS_CLAUSE field_name
+                | NAME AS_CLAUSE TIMES
                 | NAME'''
     if len(p) == 7:
-        p[0] = {"type":"agg_term","input":p[3]["input"],"output":[p[6]["field"]]}
+        if isinstance(p[6],dict):
+            p[0] = {"type":"agg_term","input":p[3]["input"],"output":[p[6]["field"]]}
+        else:
+            p[0] = {"type":"agg_term","input":p[3]["input"],"output":[p[6]]}
     elif len(p) == 5:
         p[0] = {"type":"agg_term","input":p[3]["input"],"output":["{}({})".format(p[1],p[3]["input"][0])]}
     elif len(p) == 4:
-        p[0] = {"type":"agg_term","input":[p[1]],"output":[p[3]["field"]]}
+        if isinstance(p[3],dict):
+            p[0] = {"type":"agg_term","input":[p[1]],"output":[p[3]["field"]]}
+        else:
+            p[0] = {"type":"agg_term","input":[p[1]],"output":[p[3]]}
     else:
         p[0] = {"type":"agg_term","input":[p[1]],"output":[p[1]]}
 
@@ -2690,7 +2706,7 @@ def analyze(s,verbose=False,print_errs=True,macro_files=[]):
             if res["unique_macros_found"] > res["unique_macros_expanded"]:
                 logger.warning("{} macros could not be expanded".format(res["unique_macros_found"]-res["unique_macros_expanded"]))
             s = res["text"]
-        r = yacc.parse(s,tracking=True,debug=False)
+        r = yacc.parse(s,tracking=True,debug=True)
         if print_errs:
             print_errors(s)
         logger.info("[RES] finished")
