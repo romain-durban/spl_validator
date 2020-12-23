@@ -1,6 +1,6 @@
 import sys, os, json
 
-import spl_validator  
+from lib import spl_validator  
 
 conf=None
 with open('test_conf.json') as f:

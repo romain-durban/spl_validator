@@ -1,6 +1,6 @@
 import sys, os
 
-import spl_validator  
+from lib import spl_validator  
 
 s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 [search partitions=2 index="idx2" sourcetype="logs" OR host="wkst"]
