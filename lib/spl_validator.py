@@ -2706,7 +2706,7 @@ def analyze(s,verbose=False,print_errs=True,macro_files=[]):
             if res["unique_macros_found"] > res["unique_macros_expanded"]:
                 logger.warning("{} macros could not be expanded".format(res["unique_macros_found"]-res["unique_macros_expanded"]))
             s = res["text"]
-        r = yacc.parse(s,tracking=True,debug=True)
+        r = yacc.parse(s,tracking=True,debug=False)
         if print_errs:
             print_errors(s)
         logger.info("[RES] finished")
