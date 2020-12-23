@@ -1486,10 +1486,45 @@
 			"exp_err":0,
 			"tags":["search","rtorder","valid","splunk_doc"]
 		},
+		"splunk_savedsearch_1": {
+			"search":"| savedsearch mysecurityquery",
+			"exp_err":0,
+			"tags":["savedsearch","valid","splunk_doc"]
+		},
+		"splunk_savedsearch_2": {
+			"search":"| savedsearch mysearch replace_me=\"value\"",
+			"exp_err":0,
+			"tags":["savedsearch","valid","splunk_doc"]
+		},
 		"splunk_script_1": {
 			"search":"index=idx | script myscript myarg1 myarg2 | sendemail to=david@splunk.com",
 			"exp_err":0,
 			"tags":["search","script","valid","splunk_doc","sendemail"]
+		},
+		"splunk_scrub_1": {
+			"search":"index=idx | scrub",
+			"exp_err":0,
+			"tags":["search","scrub","valid","splunk_doc"]
+		},
+		"splunk_scrub_2": {
+			"search":"index=idx | scrub private-terms=abc_private-terms",
+			"exp_err":0,
+			"tags":["search","scrub","valid","splunk_doc"]
+		},
+		"splunk_searchtxn_1": {
+			"search":"| searchtxn email to=root from=\"David Smith\"",
+			"exp_err":0,
+			"tags":["searchtxn","valid","splunk_doc"]
+		},
+		"splunk_selfjoin_1": {
+			"search":"index=idx | selfjoin id",
+			"exp_err":0,
+			"tags":["search","selfjoin","valid","splunk_doc"]
+		},
+		"splunk_selfjoin_2": {
+			"search":"| makeresults count=5 | streamstats count as a | eval _time = _time + (60*a) | eval joiner=\"x\" | eval b = if(a%2==0,\"something\"+a,\"nada\"+a), c = if(a%2==1,\"somethingelse\"+a,null()) | selfjoin joiner",
+			"exp_err":0,
+			"tags":["makeresults","selfjoin","valid","splunk_doc","streamstats","eval"]
 		},
 		"splunk_sendemail_1": {
 			"search":"index=idx | sendemail to=\"elvis@splunk.com\" sendresults=true",

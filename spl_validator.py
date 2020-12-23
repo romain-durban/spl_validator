@@ -109,12 +109,13 @@ def t_DATE(t):
     return t
 
 #Strings
+# Patterns (having a starting and/or trailing *, be careful to not catch simple multiplications)
 def t_PATTERN(t):
-    r'(\*[^\*\s]+\*|\*[a-zA-Z0-9_\.\{\}\-:<>/]+|[a-zA-Z0-9_\.\{\}\-:<>/]+\*)'
+    r'(\*[^\*\s]+\*|\*[a-zA-Z_\.\{\}\-:<>/]+|[a-zA-Z0-9_\.\{\}\-:<>/]+\*)'
     return t
 
 def t_STRING(t):
-    r'("([^"]*\\"[^"]*\\"[^"]*|[^"]+)"|\'([^\']*\\\'[^"]*\\\'[^\']*|[^\']+)\'|""|\'\')'
+    r'("([^"\\]*(\\.[^"\\]*)*)"|\'([^\'\\]*(\\.[^\'\\]*)*)\'|""|\'\')'
     t.value=t.value[1:-1]
     if t.value == "(":
         t.type = "QLPAREN"
@@ -247,7 +248,7 @@ def p_subpipeline(p):
 # Logical fields conditions
 
 def p_filters(p):
-    '''filters : filters_logic_term OR_OP filters_logic_term
+    '''filters : filters OR_OP filters_logic_term
                | filters_logic_term'''
     if len(p) == 4:
         p[0] = {"type":"filters","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
@@ -286,30 +287,30 @@ def p_filters_logic_factor(p):
 # ---
 
 def p_filter_eq(p):
-    'filter : NAME EQ value'
-    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3]["value"],"op":[p[2]]}
+    'filter : field_name EQ value'
+    p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3]["value"],"op":[p[2]]}
 
 def p_filter_neq(p):
-    'filter : NAME NEQ value'
-    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3]["value"],"op":[p[2]]}
+    'filter : field_name NEQ value'
+    p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3]["value"],"op":[p[2]]}
 
 def p_filters_sub(p):
     'filter : subsearch'
     p[0] = {"type":"filter_subsearch","input":p[1]["output"],"output":[],"value":"","op":[]}
 
 def p_filter_comp_1(p):
-    '''filter : NAME COMP_OP NUMBER
-              | NAME COMP_OP FLOAT'''
-    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3],"op":[p[2]]}
+    '''filter : field_name COMP_OP NUMBER
+              | field_name COMP_OP FLOAT'''
+    p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3],"op":[p[2]]}
 
 def p_filter_comp_(p):
-    '''filter : NUMBER COMP_OP NAME
-              | FLOAT COMP_OP NAME'''
-    p[0] = {"type":"filter","input":[p[3]],"output":[],"value":p[1],"op":[p[2]]}
+    '''filter : NUMBER COMP_OP field_name
+              | FLOAT COMP_OP field_name'''
+    p[0] = {"type":"filter","input":[p[3]["field"]],"output":[],"value":p[1],"op":[p[2]]}
 
 def p_filter_in(p):
-    '''filter : NAME IN_OP LPAREN values_list RPAREN'''
-    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[4]["values"],"op":[p[2]]}
+    '''filter : field_name IN_OP LPAREN values_list RPAREN'''
+    p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[4]["values"],"op":[p[2]]}
 
 def p_filter_phrases(p):
     '''filter : CASE_OP LPAREN value RPAREN
@@ -317,16 +318,16 @@ def p_filter_phrases(p):
     p[0] = {"type":"filter_phrase","input":[],"output":[],"value":p[3],"op":[p[1]]}
 
 def p_filter_any(p):
-    '''filter : NAME EQ TIMES
+    '''filter : field_name EQ TIMES
               | TIMES'''
     if len(p) > 2:
-        p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3],"op":[p[2]]}
+        p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3],"op":[p[2]]}
     else:
         p[0] = {"type":"filter","input":[],"output":[],"value":p[1],"op":[]}
 
 def p_filter_notany(p):
-    'filter : NAME NEQ TIMES'
-    p[0] = {"type":"filter","input":[p[1]],"output":[],"value":p[3],"op":[p[2]]}
+    'filter : field_name NEQ TIMES'
+    p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3],"op":[p[2]]}
 
 def p_filter_raw(p):
     'filter : value'
@@ -404,6 +405,7 @@ def p_expression_value(p):
             s += pp
     p[0] = {"type":"expression_value","content":s,"input":[],"output":[]}
 
+# Handling here some unwanted tokenizing with "*"
 def p_expression_binop(p):
     '''expression_value : expression_value PLUS expression_value
                         | expression_value MINUS expression_value
@@ -414,6 +416,8 @@ def p_expression_binop(p):
                         | expression_value COMP_OP expression_value
                         | expression_value MOD expression_value
                         | expression_value DOT expression_value
+                        | expression_value PATTERN
+                        | PATTERN expression_value
                         | LPAREN expression_value RPAREN'''
     s=""
     for pp in p[1:]:
@@ -436,7 +440,8 @@ def p_expression_fun_call(p):
 
 def p_expression_fun(p):
     '''expr_fun : NAME
-                | CASE_OP'''
+                | CASE_OP
+                | commands_names'''
     p[0] = {"type":"expression_value","content":p[1],"input":[],"output":[]}
 
 def p_expression_fun_args(p):
@@ -609,8 +614,12 @@ def p_commands_names(p):
                       | CMD_REVERSE
                       | CMD_REX
                       | CMD_RTORDER
+                      | CMD_SAVEDSEARCH
                       | CMD_SCRIPT
+                      | CMD_SCRUB
                       | CMD_SEARCH
+                      | CMD_SEARCHTXN
+                      | CMD_SELFJOIN
                       | CMD_SENDEMAIL
                       | CMD_SORT
                       | CMD_STATS
@@ -825,7 +834,8 @@ def p_command_basic_no_field(p):
                | CMD_RELEVANCY
                | CMD_RELTIME
                | CMD_REQUIRE
-               | CMD_RTORDER'''
+               | CMD_RTORDER
+               | CMD_SCRUB'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -866,7 +876,8 @@ def p_command_basic_only_args(p):
                | CMD_METADATA args_list
                | CMD_MPREVIEW args_list
                | CMD_RTORDER args_list
-               | CMD_SENDEMAIL args_list'''
+               | CMD_SENDEMAIL args_list
+               | CMD_SCRUB args_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
     p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
@@ -876,7 +887,8 @@ def p_command_basic_only_fields(p):
     '''command : CMD_TABLE fields_list
                | CMD_FILLDOWN fields_list
                | CMD_HIGHLIGHT fields_list
-               | CMD_ICONIFY fields_list'''
+               | CMD_ICONIFY fields_list
+               | CMD_SELFJOIN fields_list'''
     p[0] = {"type":"command","input":p[2]["input"],"output":[],"fields-effect":"none","content":[]}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -895,7 +907,8 @@ def p_command_basic_args_and_fields(p):
                | CMD_KMEANS command_params_fields_or_args
                | CMD_MCOLLECT command_params_fields_or_args
                | CMD_MEVENTCOLLECT command_params_fields_or_args
-               | CMD_SCRIPT command_params_fields_or_args'''
+               | CMD_SCRIPT command_params_fields_or_args
+               | CMD_SELFJOIN    command_params_fields_or_args'''
     p[0] = {"type":"command","input":p[2]["fields"],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
     p[0] = commands_args_and_fields_output_update(p,p[2]["args"])
@@ -2149,6 +2162,35 @@ def p_command_rex(p):
             if len(newfields) > 0:
                 p[0]["output"] += newfields
     checkArgs(p,args)
+
+# SAVESEARCH
+def p_command_savedsearch(p):
+    '''command : CMD_SAVEDSEARCH args_list field_name args_list
+               | CMD_SAVEDSEARCH args_list field_name
+               | CMD_SAVEDSEARCH field_name args_list
+               | CMD_SAVEDSEARCH field_name'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"generate","content":[]}
+    args={}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "field_name":
+            p[0]["content"].append(pp["field"])
+    for arg in args:
+        if not arg in cmd_conf[p[1]]["args"]:
+            p[0]["content"].append(args[arg])
+
+# SEARCHTXN
+def p_command_searchtxn(p):
+    '''command : CMD_SEARCHTXN field_name filters'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"generate","content":[]}
+    for pp in p[2:]:
+        if pp["type"] == "field_name":
+            p[0]["content"].append(pp["field"])
+        elif pp["type"] == "filters":
+            for inp in pp["input"]:
+                if not inp in cmd_conf[p[1]]["args"]:
+                    p[0]["input"].append(inp)
 
 # STREAMSTATS
 def p_command_streamstats(p):

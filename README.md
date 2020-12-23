@@ -144,8 +144,12 @@ SPL commands specification is done in the `spl_commands.json` file
 | return | | | |
 | reverse | | | |
 | run | all args | | |
+| savedsearch | all args | | |
 | script | all args | | |
+| scrub | all args | | |
 | search | accidently most args | probably args with special characters | |
+| searchtxn | all args | | |
+| selfjoin | all args | | |
 | sendemail | all args | | |
 | sort | | | |
 | stats | first group of args | arg after group by | |

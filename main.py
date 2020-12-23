@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='index=idx | script myscript myarg1 myarg2 | sendemail to=david@splunk.com'
+s='index=idx | eval test=test("\\"","")'
 
 print(s)
 
