@@ -249,6 +249,7 @@ def p_subpipeline(p):
 
 def p_filters(p):
     '''filters : filters OR_OP filters_logic_term
+               | filters filters_logic_term
                | filters_logic_term'''
     if len(p) == 4:
         p[0] = {"type":"filters","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
@@ -674,25 +675,27 @@ def p_command_search(p):
 
 # STATS
 def p_command_stats(p):
-    '''command : CMD_STATS args_list agg_terms_list BY_CLAUSE fields_list
+    '''command : CMD_STATS args_list agg_terms_list BY_CLAUSE fields_list args_list
+               | CMD_STATS agg_terms_list BY_CLAUSE fields_list args_list
+               | CMD_STATS args_list agg_terms_list BY_CLAUSE fields_list
                | CMD_STATS agg_terms_list BY_CLAUSE fields_list
-               | CMD_STATS args_list agg_terms_list
+               | CMD_STATS args_list agg_terms_list args_list
+               | CMD_STATS agg_terms_list args_list
+               | CMD_STATS args_list agg_terms_list 
                | CMD_STATS agg_terms_list'''
-    global params
-    fields={"type":"command","input":[],"output":[],"fields-effect":"replace"}
-    byclause,aggclause = [], []
-    if len(p) == 6:
-        byclause = p[5]["input"]
-    elif len(p) == 5:
-        byclause = p[4]["input"]
-    for f in byclause:
-        if f not in fields["input"] and f is not None:
-            fields["input"].append(f)
-            fields["output"].append(f)
-    if len(p) == 6 or len(p) == 4:
-        aggclause = p[3]
-    else:
-        aggclause = p[2]
+    fields={"type":"command","input":[],"output":[],"fields-effect":"replace","content":[]}
+    byclause,aggclause = {}, {}
+    args={}
+
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+            elif pp["type"] == "agg_terms_list":
+                aggclause["input"]=pp["input"]
+                aggclause["output"]=pp["output"]
+            elif pp["type"] == "fields_list":
+                byclause["input"]=pp["input"]
 
     for f in aggclause["input"]:
         if f not in fields["input"] and f is not None:
@@ -704,14 +707,13 @@ def p_command_stats(p):
             report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Duplicate field '{}' in stats".format(f),None,value=f)
     p[0] = fields
     
-    if len(p) == 6 or len(p) == 4:
-        checkArgs(p,p[2]["args"])
+    if len(args) > 0:
+        checkArgs(p,args)
     logger.info("Parsed a STATS: {}".format(fields))
 
 # EVAL
 def p_command_eval(p):
     'command : CMD_EVAL eval_exprs'
-    global params
     p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"extend","content":p[2]["content"]}
     logger.info("Parsed a EVAL: {}".format(p[0]))
 
@@ -790,8 +792,8 @@ def p_command_dedup_args(p):
                | CMD_DEDUP fields_list args_list'''
     args=None
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
-    for pp in p[1:]:
-        if "type" in pp:
+    for pp in p[2:]:
+        if isinstance(pp,dict):
             if pp["type"] in ["fields_list","sort_clause"]:
                 p[0]["input"] += pp["input"]
             elif pp["type"] == "args_list":
@@ -804,8 +806,8 @@ def p_command_dedup_noargs(p):
                | CMD_DEDUP NUMBER fields_list
                | CMD_DEDUP fields_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none"}
-    for pp in p[1:]:
-        if "type" in pp:
+    for pp in p[2:]:
+        if isinstance(pp,dict):
             if pp["type"] in ["fields_list","sort_clause"]:
                 p[0]["input"] += pp["input"]
 
@@ -2350,11 +2352,11 @@ def p_agg_terms_list(p):
                       | agg_terms_list agg_term
                       | agg_term'''
     if len(p) == 4:
-        p[0] = {"type":"agg_terms_list","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"]}
+        p[0] = {"type":"agg_terms_list","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":[]}
     elif len(p) == 3:
-        p[0] = {"type":"agg_terms_list","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"]}
+        p[0] = {"type":"agg_terms_list","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"],"content":[]}
     else:
-        p[0] = p[1]
+        p[0] = {"type":"agg_terms_list","input":p[1]["input"],"output":p[1]["output"],"content":[]}
 
 def p_agg_term(p):
     '''agg_term : NAME LPAREN agg_term_arg RPAREN AS_CLAUSE field_name
@@ -2365,24 +2367,24 @@ def p_agg_term(p):
                 | NAME'''
     if len(p) == 7:
         if isinstance(p[6],dict):
-            p[0] = {"type":"agg_term","input":p[3]["input"],"output":[p[6]["field"]]}
+            p[0] = {"type":"agg_term","input":p[3]["input"],"output":[p[6]["field"]],"content":[]}
         else:
-            p[0] = {"type":"agg_term","input":p[3]["input"],"output":[p[6]]}
+            p[0] = {"type":"agg_term","input":p[3]["input"],"output":[p[6]],"content":[]}
     elif len(p) == 5:
-        p[0] = {"type":"agg_term","input":p[3]["input"],"output":["{}({})".format(p[1],p[3]["input"][0])]}
+        p[0] = {"type":"agg_term","input":p[3]["input"],"output":["{}({})".format(p[1],p[3]["input"][0])],"content":[]}
     elif len(p) == 4:
         if isinstance(p[3],dict):
-            p[0] = {"type":"agg_term","input":[p[1]],"output":[p[3]["field"]]}
+            p[0] = {"type":"agg_term","input":[p[1]],"output":[p[3]["field"]],"content":[]}
         else:
-            p[0] = {"type":"agg_term","input":[p[1]],"output":[p[3]]}
+            p[0] = {"type":"agg_term","input":[p[1]],"output":[p[3]],"content":[]}
     else:
-        p[0] = {"type":"agg_term","input":[p[1]],"output":[p[1]]}
+        p[0] = {"type":"agg_term","input":[p[1]],"output":[p[1]],"content":[]}
 
 def p_agg_term_arg(p):
     '''agg_term_arg : eval_expr_fun_value
                     | field_name
                     | TIMES'''
-    p[0] = {"type":"agg_term_arg","input":[""],"output":[]}
+    p[0] = {"type":"agg_term_arg","input":[""],"output":[],"content":[]}
     if "type" in p[1]:
         if p[1]["type"] == "eval_expr_fun_value":
             p[0]["content"] = p[1]["content"]
