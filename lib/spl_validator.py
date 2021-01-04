@@ -631,13 +631,24 @@ def p_commands_names(p):
                       | CMD_SEARCHTXN
                       | CMD_SELFJOIN
                       | CMD_SENDEMAIL
+                      | CMD_SET
+                      | CMD_SETFIELDS
+                      | CMD_SICHART
+                      | CMD_SISTATS
+                      | CMD_SITIMECHART
+                      | CMD_SITOP
                       | CMD_SORT
+                      | CMD_SPATH
                       | CMD_STATS
+                      | CMD_STRCAT
                       | CMD_STREAMSTATS
                       | CMD_TABLE
+                      | CMD_TAGS
+                      | CMD_TAIL
                       | CMD_TIMECHART
                       | CMD_TOP
                       | CMD_TRANSACTION
+                      | CMD_UNION
                       '''
     # Removed CMD_WHERE on purpose because it also is a operator in various commands
     # and this creates unwanted behaviours
@@ -673,7 +684,7 @@ def p_command_search(p):
     'command : CMD_SEARCH filters'
     p[0] = {"type":"command","input":p[2]["input"],"output":[],"fields-effect":"none","content":p[2]["content"],"op":p[2]["op"]}
 
-# STATS
+# STATS / SISTATS
 def p_command_stats(p):
     '''command : CMD_STATS args_list agg_terms_list BY_CLAUSE fields_list args_list
                | CMD_STATS agg_terms_list BY_CLAUSE fields_list args_list
@@ -682,7 +693,15 @@ def p_command_stats(p):
                | CMD_STATS args_list agg_terms_list args_list
                | CMD_STATS agg_terms_list args_list
                | CMD_STATS args_list agg_terms_list 
-               | CMD_STATS agg_terms_list'''
+               | CMD_STATS agg_terms_list
+               | CMD_SISTATS args_list agg_terms_list BY_CLAUSE fields_list args_list
+               | CMD_SISTATS agg_terms_list BY_CLAUSE fields_list args_list
+               | CMD_SISTATS args_list agg_terms_list BY_CLAUSE fields_list
+               | CMD_SISTATS agg_terms_list BY_CLAUSE fields_list
+               | CMD_SISTATS args_list agg_terms_list args_list
+               | CMD_SISTATS agg_terms_list args_list
+               | CMD_SISTATS args_list agg_terms_list 
+               | CMD_SISTATS agg_terms_list'''
     fields={"type":"command","input":[],"output":[],"fields-effect":"replace","content":[]}
     byclause,aggclause = {}, {}
     args={}
@@ -758,32 +777,6 @@ def p_command_rename(p):
     'command : CMD_RENAME rfields_list'
     p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"rename"}
 
-# SORT
-def p_command_sort(p):
-    '''command : CMD_SORT NUMBER sort_clause
-               | CMD_SORT sort_clause
-               | CMD_SORT NUMBER sort_clause NAME
-               | CMD_SORT sort_clause NAME'''
-    if len(p) == 4:
-        p[0] = {"type":"command","input":p[3]["input"],"output":p[3]["output"],"fields-effect":"none"}
-    else:
-        p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"none"}
-
-def p_command_sort_clause(p):
-    '''sort_clause : sort_clause COMMA sort_term
-                   | sort_term'''
-    p[0] = {"type":"sort_clause","input":[],"output":[],"fields-effect":"none"}
-    if len(p) == 4:
-        p[0]["input"] = p[1]["input"] + [p[3]["field"]]
-    else:
-        p[0]["input"] = [p[1]["field"]]
-
-def p_command_sort_term(p):
-    '''sort_term : PLUS field_name
-                 | MINUS field_name
-                 | field_name'''
-    p[0] = {"type":"sort_term","field":p[len(p)-1]["field"],"fields-effect":"none"}
-
 # DEDUP
 def p_command_dedup_args(p):
     '''command : CMD_DEDUP NUMBER fields_list args_list SORTBY_CLAUSE sort_clause
@@ -846,7 +839,8 @@ def p_command_basic_no_field(p):
                | CMD_RELTIME
                | CMD_REQUIRE
                | CMD_RTORDER
-               | CMD_SCRUB'''
+               | CMD_SCRUB
+               | CMD_TAGS'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -918,7 +912,8 @@ def p_command_basic_args_and_fields(p):
                | CMD_MCOLLECT command_params_fields_or_args
                | CMD_MEVENTCOLLECT command_params_fields_or_args
                | CMD_SCRIPT command_params_fields_or_args
-               | CMD_SELFJOIN command_params_fields_or_args'''
+               | CMD_SELFJOIN command_params_fields_or_args
+               | CMD_TAGS command_params_fields_or_args'''
     p[0] = {"type":"command","input":p[2]["fields"],"output":[],"fields-effect":"none","content":[]}
     checkArgs(p,p[2]["args"])
     p[0] = commands_args_and_fields_output_update(p,p[2]["args"])
@@ -1032,6 +1027,13 @@ def commands_args_and_fields_output_update(p,args):
     elif p[1] == "sendemail":
         if not "to" in args:
             report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Missing 'to' argument in command {}".format(p[1]),None,value="to")
+    elif p[1] == "tags":
+        if "outputfield" in args:
+            out["output"].append(args["outputfield"])
+        else:
+            out["output"].append("tags")
+            for f in p[0]["input"]:
+                out["output"].append("tag::"+f)
 
     return out
 
@@ -1131,18 +1133,10 @@ def p_command_bin(p):
                     p[0]["output"].append(pp["field"])
     checkArgs(p,args)
 
-# TOP
-def p_command_top(p):
-    '''command : CMD_TOP NUMBER command_params_by_and_fields_or_args
-               | CMD_TOP command_params_by_and_fields_or_args'''
-    data=p[len(p)-1]
-    if "args" in data["args"]:
-            checkArgs(p,data["args"]["args"])
-    p[0] = {"type":"command","input":data["fields"]+data["by"],"output":[],"fields-effect":"none"}
-
-# CHART
+# CHART / SICHART
 def p_command_chart(p):
-    '''command : CMD_CHART command_chart_1 command_chart_2'''
+    '''command : CMD_CHART command_chart_1 command_chart_2
+               | CMD_SICHART command_chart_1 command_chart_2'''
     p[0] = {"type":"command","input":p[2]["input"]+p[3]["fields"],"output":p[2]["output"],"fields-effect":"replace"}
     args=p[2]["args"]
     extendDict(args,p[3]["args"])
@@ -2042,7 +2036,7 @@ def p_command_rangemap(p):
             p[0]["input"].append(p[2]["args"][arg])
         p[0]["content"].append(p[2]["args"][arg])
 
-# RARE
+# RARE / SIRARE
 def p_command_rare(p):
     '''command : CMD_RARE args_list fields_list BY_CLAUSE fields_list args_list
                | CMD_RARE args_list fields_list BY_CLAUSE fields_list
@@ -2202,6 +2196,97 @@ def p_command_searchtxn(p):
                 if not inp in cmd_conf[p[1]]["args"]:
                     p[0]["input"].append(inp)
 
+
+# SET
+def p_command_set(p):
+    '''command : CMD_SET NAME subsearch subsearch
+               | CMD_SET CMD_DIFF subsearch subsearch
+               | CMD_SET CMD_UNION subsearch subsearch'''
+    p[0] = {"type":"command","input":p[3]["input"]+p[4]["input"],"output":[],"fields-effect":"generate","content":p[3]["content"]+p[4]["content"]}
+    checkArgs(p,[p[2]])
+
+# SETFIELDS
+def p_command_setfields(p):
+    '''command : CMD_SETFIELDS str_args_list'''
+    k=list(p[2]["args"].keys())
+    v=list(p[2]["args"].values())
+    p[0] = {"type":"command","input":k,"output":k,"fields-effect":"extend","content":v}
+
+# SORT
+def p_command_sort(p):
+    '''command : CMD_SORT NUMBER sort_clause
+               | CMD_SORT sort_clause
+               | CMD_SORT NUMBER sort_clause NAME
+               | CMD_SORT sort_clause NAME'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "sort_clause":
+                p[0]["input"] = pp["input"]
+                p[0]["output"] = pp["output"]
+        else:
+            p[0]["content"].append(pp)
+
+def p_command_sort_clause(p):
+    '''sort_clause : sort_clause COMMA sort_term
+                   | sort_term'''
+    p[0] = {"type":"sort_clause","input":[],"output":[]}
+    if len(p) == 4:
+        p[0]["input"] = p[1]["input"] + [p[3]["field"]]
+    else:
+        p[0]["input"] = [p[1]["field"]]
+
+def p_command_sort_term(p):
+    '''sort_term : PLUS field_name
+                 | MINUS field_name
+                 | field_name'''
+    p[0] = {"type":"sort_term","field":p[len(p)-1]["field"]}
+
+# SPATH
+def p_command_spath(p):
+    '''command : CMD_SPATH args_list field_name args_list
+               | CMD_SPATH args_list field_name
+               | CMD_SPATH field_name args_list
+               | CMD_SPATH field_name
+               | CMD_SPATH args_list
+               | CMD_SPATH'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","content":[]}
+    args={}
+    for pp in p[2:]:
+        if pp["type"] == "args_list":
+            extendDict(args,pp["args"])
+        elif pp["type"] == "field_name":
+            p[0]["input"].append(pp["field"])
+    if "path" in args:
+        p[0]["input"].append(args["path"])
+    if "output" in args:
+        p[0]["output"].append(args["output"])
+    if "input" in args:
+        p[0]["input"].append(args["input"])
+
+# STRCAT
+def p_command_strcat(p):
+    '''command : CMD_STRCAT args_term strcat_fields
+               | CMD_STRCAT strcat_fields args_term
+               | CMD_STRCAT strcat_fields'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","content":[]}
+    for pp in p[2:]:
+        if pp["type"] == "args_term":
+            checkArgs(p,pp["args"])
+        elif pp["type"] == "strcat_fields":
+            p[0]["output"].append(pp["input"][-1])
+            p[0]["content"] = [".".join(pp["input"][:-1])]
+
+
+def p_command_strcat_fields(p):
+    '''strcat_fields : strcat_fields field_name
+                     | field_name'''
+    p[0] = {"type":"strcat_fields","input":[],"output":[],"fields-effect":"extend","content":[]}
+    if len(p) == 2:
+        p[0]["input"] = [p[1]["field"]]
+    else:
+        p[0]["input"] = p[1]["input"] + [p[2]["field"]]
+
 # STREAMSTATS
 def p_command_streamstats(p):
     '''command : CMD_STREAMSTATS streamstats_args agg_terms_list streamstats_args BY_CLAUSE fields_list streamstats_args
@@ -2216,7 +2301,7 @@ def p_command_streamstats(p):
                | CMD_STREAMSTATS agg_terms_list streamstats_args
                | CMD_STREAMSTATS streamstats_args agg_terms_list
                | CMD_STREAMSTATS agg_terms_list'''
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend"}
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"extend","content":[]}
     args={}
     for pp in p[2:]:
         if isinstance(pp,dict):
@@ -2246,7 +2331,15 @@ def p_command_streamstats_args_term(p):
     else:
         p[0]["args"][p[1]] = "\"(\"{}\")\"".format(p[4]["content"])
 
-# TIMECHART
+# TAIL
+def p_command_tail(p):
+    '''command : CMD_TAIL NUMBER
+               | CMD_TAIL'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[]}
+    if len(p) > 2:
+        p[0]["content"].append(p[2])
+
+# TIMECHART / SITIMECHART
 def p_command_timechart_agg(p):
     '''command : CMD_TIMECHART args_list agg_or_eval_list BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause args_list
                | CMD_TIMECHART args_list agg_or_eval_list BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause
@@ -2259,7 +2352,19 @@ def p_command_timechart_agg(p):
                | CMD_TIMECHART args_list agg_terms_list args_list
                | CMD_TIMECHART args_list agg_terms_list
                | CMD_TIMECHART agg_terms_list args_list
-               | CMD_TIMECHART agg_terms_list'''
+               | CMD_TIMECHART agg_terms_list
+               | CMD_SITIMECHART args_list agg_or_eval_list BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause args_list
+               | CMD_SITIMECHART args_list agg_or_eval_list BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause
+               | CMD_SITIMECHART args_list agg_or_eval_list BY_CLAUSE field_name args_list
+               | CMD_SITIMECHART args_list agg_or_eval_list BY_CLAUSE field_name
+               | CMD_SITIMECHART agg_or_eval_list BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause args_list
+               | CMD_SITIMECHART agg_or_eval_list BY_CLAUSE field_name args_list CMD_WHERE chart_where_clause
+               | CMD_SITIMECHART agg_or_eval_list BY_CLAUSE field_name args_list
+               | CMD_SITIMECHART agg_or_eval_list BY_CLAUSE field_name
+               | CMD_SITIMECHART args_list agg_terms_list args_list
+               | CMD_SITIMECHART args_list agg_terms_list
+               | CMD_SITIMECHART agg_terms_list args_list
+               | CMD_SITIMECHART agg_terms_list'''
     p[0] = {"type":"command","input":[],"output":["_time"],"fields-effect":"replace","content":[]}
     args={}
     for pp in p[2:]:
@@ -2275,7 +2380,16 @@ def p_command_timechart_agg(p):
                 p[0]["output"].append(pp["field"])
     checkArgs(p,args)
 
-
+# TOP / SITOP
+def p_command_top(p):
+    '''command : CMD_TOP NUMBER command_params_by_and_fields_or_args
+               | CMD_TOP command_params_by_and_fields_or_args
+               | CMD_SITOP NUMBER command_params_by_and_fields_or_args
+               | CMD_SITOP command_params_by_and_fields_or_args'''
+    data=p[len(p)-1]
+    if "args" in data["args"]:
+            checkArgs(p,data["args"]["args"])
+    p[0] = {"type":"command","input":data["fields"]+data["by"],"output":[],"fields-effect":"none"}
 
 #--------------------
 # Generic args positioning
@@ -2531,17 +2645,31 @@ def p_args_value(p):
     else:
         p[0]["value"] = p[1]
 
-def p_command_basic_args_list(p):
+def p_basic_args_list(p):
     '''basic_args_list : basic_args_list basic_args_term
                        | basic_args_term'''
     p[0] = {"type":"pivot_args_list","input":[],"output":[],"content":[],"args":p[1]["args"]}
     if len(p) > 2:
         extendDict(p[0]["args"],p[2]["args"])
 
-def p_command_pbasic_args_term(p):
+def p_basic_args_term(p):
     '''basic_args_term : NAME EQ args_value'''
     p[0] = {"type":"basic_args_term","input":[],"output":[],"content":[],"args":{}}
     p[0]["args"][p[1].lower()]=p[3]["value"]
+
+def p_str_args_list(p):
+    '''str_args_list : str_args_list COMMA str_args_term
+                     | str_args_term'''
+    p[0] = {"type":"str_args_list","input":[],"output":[],"content":[],"args":p[1]["args"]}
+    if len(p) > 2:
+        extendDict(p[0]["args"],p[3]["args"])
+
+def p_str_args_term(p):
+    '''str_args_term : NAME EQ STRING
+                     | commands_names EQ STRING
+                     | op_names EQ STRING'''
+    p[0] = {"type":"str_args_term","input":[],"output":[],"content":[],"args":{}}
+    p[0]["args"][p[1].lower()]=p[3]
 
 def p_command_chart_limit(p):
     '''chart_limit : BOTTOM_OP NUMBER

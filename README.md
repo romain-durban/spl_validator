@@ -151,9 +151,21 @@ SPL commands specification is done in the `spl_commands.json` file
 | searchtxn | all args | | |
 | selfjoin | all args | | |
 | sendemail | all args | | |
+| set | all args | | |
+| setfields | | | |
+| sichart | all args | | implemented as the replica of the chart command |
+| sirare | all args | | implemented as an alias of the rare command |
+| sistats | all args | | implemented as the replica of the stats command |
+| sitimechart| all args | | implemented as the replica of the timechart command |
+| sitop| all args | | implemented as the replica of the top command |
 | sort | | | |
+| spath | all args | | |
 | stats | first group of args | arg after group by | |
+| strcat | all args | | |
+| streamstats | all args | | |
 | table | | | |
+| tags | all args | | also giving the list of created fields |
+| tail | | | |
 | timechart | all args | | `agg` arg might not be properly handled since it is badly documented, same for the commands with multiple aggregation terms |
 | top | all args | | |
 | transaction | all args | list of fields for arg mvlist because that is a nightmare to handle | |

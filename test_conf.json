@@ -1541,7 +1541,106 @@
 			"exp_err":0,
 			"tags":["search","sendemail","valid","splunk_doc","head"]
 		},
-		
+		"splunk_set_1": {
+			"search":"| set diff [search 404 | fields url] [search 303 | fields url]",
+			"exp_err":0,
+			"tags":["set","valid","splunk_doc","subsearch"]
+		},
+		"splunk_set_2": {
+			"search":"| set intersect [search 404 | fields url | fields - _*] [search 303 | fields url | fields - _*]",
+			"exp_err":0,
+			"tags":["set","valid","splunk_doc","subsearch"]
+		},
+		"splunk_setfields_1": {
+			"search":"index=idx | setfields ip=\"10.10.10.10\", foo=\"foo bar\"",
+			"exp_err":0,
+			"tags":["search","setfields","valid","splunk_doc"]
+		},
+		"splunk_sichart_1": {
+			"search":"index=idx | sichart avg(foo) by bar",
+			"exp_err":0,
+			"tags":["search","sichart","valid","splunk_doc"]
+		},
+		"splunk_sirare_1": {
+			"search":"index=idx | sirare foo bar",
+			"exp_err":0,
+			"tags":["search","sirare","valid","splunk_doc"]
+		},
+		"splunk_sistats_1": {
+			"search":"index=idx | sistats avg(*lay) BY date_hour",
+			"exp_err":0,
+			"tags":["search","sistats","valid","splunk_doc"]
+		},
+		"splunk_sitop_1": {
+			"search":"index=idx | sitop foo bar",
+			"exp_err":0,
+			"tags":["search","sitop","valid","splunk_doc"]
+		},
+		"splunk_sitop_2": {
+			"search":"eventtype=firewall | sitop src_ip",
+			"exp_err":0,
+			"tags":["search","sitop","valid","splunk_doc"]
+		},
+		"splunk_sitimechart_1": {
+			"search":"index=idx | sitimechart avg(cpu) BY host | collect index=mysummary",
+			"exp_err":0,
+			"tags":["search","sitimechart","valid","splunk_doc","collect"]
+		},
+		"splunk_spath_1": {
+			"search":"index=idx | spath output=myfield path=foo.bar.baz",
+			"exp_err":0,
+			"tags":["search","spath","valid","splunk_doc"]
+		},
+		"splunk_spath_2": {
+			"search":"index=idx | spath output=myfield server.name",
+			"exp_err":0,
+			"tags":["search","spath","valid","splunk_doc"]
+		},
+		"splunk_spath_3": {
+			"search":"index=idx | spath output=myfield path=foo{1}",
+			"exp_err":0,
+			"tags":["search","spath","valid","splunk_doc"]
+		},
+		"splunk_spath_4": {
+			"search":"index=idx | spath output=myfield path=foo.bar{}.baz",
+			"exp_err":0,
+			"tags":["search","spath","valid","splunk_doc"]
+		},
+		"splunk_spath_5": {
+			"search":"index=idx | spath output=dates path=purchases.book.title{@yearPublished} | table dates",
+			"exp_err":0,
+			"tags":["search","spath","valid","splunk_doc","table"]
+		},
+		"splunk_spath_6": {
+			"search":"index=idx | spath output=commit_author path=commits{}.author.name",
+			"exp_err":0,
+			"tags":["search","spath","valid","splunk_doc"]
+		},
+		"splunk_spath_7": {
+			"search":"index=idx | spath path=vendorProductSet.product.desc.locDesc{4}{@locale}",
+			"exp_err":0,
+			"tags":["search","spath","valid","splunk_doc"]
+		},
+		"splunk_spath_8": {
+			"search":"sourcetype=json | spath | rename widget.text.size AS size, widget.text.data AS data | eval x=mvzip(data,size)| mvexpand x | eval x = split(x,\",\") | eval data=mvindex(x,0) | eval size=mvindex(x,1) | table _time,data, size",
+			"exp_err":0,
+			"tags":["search","spath","valid","splunk_doc","rename","eval","mvexpand","table"]
+		},
+		"splunk_strcat_1": {
+			"search":"index=idx | strcat sourceIP \"/\" destIP comboIP",
+			"exp_err":0,
+			"tags":["search","strcat","valid","splunk_doc"]
+		},
+		"splunk_strcat_2": {
+			"search":"host=\"mailserver\" | strcat sourceIP \"/\" destIP comboIP | chart count by comboIP",
+			"exp_err":0,
+			"tags":["search","strcat","valid","splunk_doc","chart"]
+		},
+		"splunk_strcat_3": {
+			"search":"index=idx | strcat host \"::\" port address",
+			"exp_err":0,
+			"tags":["search","strcat","valid","splunk_doc"]
+		},
 		"splunk_streamstats_1": {
 			"search":"| makeresults count=3 | streamstats count | eval test=if(count==2,\"yes\",\"no\") | streamstats count as testCount reset_after=\"(\"match(test,\"yes\")\")\"",
 			"exp_err":0,
@@ -1576,6 +1675,31 @@
 			"search":"index=idx | timechart span=1h sum(bytes) as SumOfBytes | streamstats global=f sum(*) as accu_total_*",
 			"exp_err":0,
 			"tags":["search","streamstats","valid","splunk_doc","timechart"]
+		},
+		"splunk_tags_1": {
+			"search":"sourcetype=access_* | stats count by host sourcetype | tags",
+			"exp_err":0,
+			"tags":["search","tags","valid","splunk_doc","stats"]
+		},
+		"splunk_tags_2": {
+			"search":"index=idx | tags host eventtype",
+			"exp_err":0,
+			"tags":["search","tags","valid","splunk_doc"]
+		},
+		"splunk_tags_3": {
+			"search":"index=idx | tags outputfield=test",
+			"exp_err":0,
+			"tags":["search","tags","valid","splunk_doc"]
+		},
+		"splunk_tags_4": {
+			"search":"index=idx | tags outputfield=test inclname=t host sourcetype",
+			"exp_err":0,
+			"tags":["search","tags","valid","splunk_doc"]
+		},
+		"splunk_tail_1": {
+			"search":"index=idx | tail 20",
+			"exp_err":0,
+			"tags":["search","tail","valid","splunk_doc"]
 		},
 		"splunk_timechart_1": {
 			"search":"index=idx | timechart span=1m eval(avg(CPU) * avg(MEM)) BY host",
