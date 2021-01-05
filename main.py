@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='index=idx | tail 20'
+s='index=idx | union datamodel:\"internal_server.splunkdaccess\" [search index=a]'
 
 print(s)
 

@@ -167,8 +167,16 @@ SPL commands specification is done in the `spl_commands.json` file
 | tags | all args | | also giving the list of created fields |
 | tail | | | |
 | timechart | all args | | `agg` arg might not be properly handled since it is badly documented, same for the commands with multiple aggregation terms |
+| timewarp | all args | | |
 | top | all args | | |
 | transaction | all args | list of fields for arg mvlist because that is a nightmare to handle | |
+| transpose | all args | | also giving the list of created fields except when header_field is being used |
+| tstats | all args | | |
+| typeahead | all args | | |
+| typelearner | all args | | |
+| typer | all args | | |
+| union | all args | | |
+| uniq | | | |
 | where | | | |
 
 

@@ -1756,8 +1756,21 @@
 			"exp_err":0,
 			"tags":["search","timechart","valid","splunk_doc"]
 		},
-
-
+		"splunk_timewarp_1": {
+			"search":"index=idx | timechart count span=1d | timewrap 1week",
+			"exp_err":0,
+			"tags":["search","timewarp","valid","splunk_doc","timechart"]
+		},
+		"splunk_timewarp_2": {
+			"search":"index=idx | timechart count span=1h | timewrap  d series=short | addtotals s* | eval 7dayavg=Total/7.0 | table _time, _span, s0, s1, 7dayavg | rename s0 as now, s1 as yesterday",
+			"exp_err":0,
+			"tags":["search","timewarp","valid","splunk_doc","timechart","addtotals","eval","table","rename"]
+		},
+		"splunk_timewarp_3": {
+			"search":"index=idx | timechart count span=1h | timewrap w | where strftime(_time, \"%A\") == \"Wednesday\"",
+			"exp_err":0,
+			"tags":["search","timewarp","valid","splunk_doc","timechart","where"]
+		},
 		"splunk_top_1": {
 			"search":"sourcetype=access_* | top limit=20 referer",
 			"exp_err":0,
@@ -1772,6 +1785,127 @@
 			"search":"sourcetype=access_* status=200 action=purchase | top 1 productName by categoryId showperc=f countfield=total",
 			"exp_err":0,
 			"tags":["search","top","valid","splunk_doc","top"]
+		},
+		"splunk_transpose_1": {
+			"search":"index=idx | chart count BY host error_code | transpose",
+			"exp_err":0,
+			"tags":["search","transpose","valid","splunk_doc","chart"]
+		},
+		"splunk_transpose_2": {
+			"search":"index=_internal | stats count by sourcetype | sort -count | transpose 3",
+			"exp_err":0,
+			"tags":["search","transpose","valid","splunk_doc","stats","sort"]
+		},
+		"splunk_trendline_1": {
+			"search":"index=idx | trendline sma5(foo) AS smoothed_foo ema10(bar)",
+			"exp_err":0,
+			"tags":["search","trendline","valid","splunk_doc"]
+		},
+		"splunk_trendline_2": {
+			"search":"index=\"bar\" | stats count BY date_month | trendline sma2(count) AS trend | fields * trend",
+			"exp_err":0,
+			"tags":["search","trendline","valid","splunk_doc","stats","fields"]
+		},
+		"splunk_tscollect_1": {
+			"search":"index=idx | tscollect namespace=foo",
+			"exp_err":0,
+			"tags":["search","tscollect","valid","splunk_doc"]
+		},
+		"splunk_tscollect_2": {
+			"search":"index=main | fields foo | tscollect",
+			"exp_err":0,
+			"tags":["search","tscollect","valid","splunk_doc","fields"]
+		},
+		"splunk_tstats_1": {
+			"search":"| tstats count FROM mydata",
+			"exp_err":0,
+			"tags":["tstats","valid","splunk_doc"]
+		},
+		"splunk_tstats_2": {
+			"search":"| tstats avg(foo) FROM mydata WHERE bar=value2 baz>5",
+			"exp_err":0,
+			"tags":["tstats","valid","splunk_doc"]
+		},
+		"splunk_tstats_3": {
+			"search":"| tstats count WHERE host=x BY source",
+			"exp_err":0,
+			"tags":["tstats","valid","splunk_doc"]
+		},
+		"splunk_tstats_4": {
+			"search":"| tstats prestats=t count BY _time span=1d | timechart span=1d count",
+			"exp_err":0,
+			"tags":["tstats","valid","splunk_doc","timechart"]
+		},
+		"splunk_tstats_5": {
+			"search":"| tstats prestats=t median(foo) FROM mydata | tstats prestats=t append=t median(bar) FROM otherdata | stats median(foo) median(bar)",
+			"exp_err":0,
+			"tags":["tstats","valid","splunk_doc","stats"]
+		},
+		"splunk_tstats_6": {
+			"search":"| tstats summariesonly=t min(_time) AS min, max(_time) AS max FROM datamodel=mydm | eval prettymin=strftime(min, \"%c\") | eval prettymax=strftime(max, \"%c\")",
+			"exp_err":0,
+			"tags":["tstats","valid","splunk_doc"]
+		},
+		"splunk_tstats_7": {
+			"search":"| tstats summariesonly=t prestats=t count FROM datamodel=mydm BY _time span=1h | timechart span=1h count",
+			"exp_err":0,
+			"tags":["tstats","valid","splunk_doc"]
+		},
+		"splunk_tstats_8": {
+			"search":"| tstats values(source) FROM datamodel=internal_server",
+			"exp_err":0,
+			"tags":["tstats","valid","splunk_doc"]
+		},
+		"splunk_tstats_9": {
+			"search":"| tstats values(source) FROM datamodel=internal_server where nodename=server.scheduler.alerts",
+			"exp_err":0,
+			"tags":["tstats","valid","splunk_doc"]
+		},
+		"splunk_tstats_10": {
+			"search":"| tstats count avg(PREFIX(kbps=)) where index=_internal by source PREFIX(group=)",
+			"exp_err":0,
+			"tags":["tstats","valid","splunk_doc"]
+		},
+		"splunk_typeahead_1": {
+			"search":"| typeahead prefix=source count=10 index=_internal",
+			"exp_err":0,
+			"tags":["typeahead","valid","splunk_doc"]
+		},
+		"splunk_typelearner_1": {
+			"search":"index=idx | typelearner",
+			"exp_err":0,
+			"tags":["search","typelearner","valid","splunk_doc"]
+		},
+		"splunk_typer_1": {
+			"search":"index=idx | typer",
+			"exp_err":0,
+			"tags":["search","typer","valid","splunk_doc"]
+		},
+		"splunk_union_1": {
+			"search":"| union [search index=a | eval type = \"foo\"] [search index=b | eval mytype = \"bar\"]",
+			"exp_err":0,
+			"tags":["union","valid","splunk_doc"]
+		},
+		"splunk_union_2": {
+			"search":"index=idx | chart count by category1 | union [search error | chart count by category2]",
+			"exp_err":0,
+			"tags":["search","union","valid","splunk_doc","chart"]
+		},
+		"splunk_union_3": {
+			"search":"index=idx | union datamodel:\"internal_server.splunkdaccess\" [search index=a]",
+			"exp_err":0,
+			"tags":["search","union","valid","splunk_doc"]
+		},
+		"splunk_union_4": {
+			"search":"index=idx | chart count by category1 | union maxout=20000 maxtime=120 timeout=600 [search error | chart count by category2]",
+			"exp_err":0,
+			"tags":["search","union","valid","splunk_doc","chart"]
+		},
+		"splunk_uniq_1": {
+			"search":"index=idx | uniq",
+			"exp_err":0,
+			"tags":["search","uniq","valid","splunk_doc"]
 		}
+
 	}
 }
