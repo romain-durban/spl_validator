@@ -46,6 +46,12 @@ def expandMacro(macro,mconf):
 		else:
 			nb_args=1
 			margs=[margs]
+	# Reformat args, like trim quotes
+	for i in range(0,len(margs)):
+		arg=margs[i]
+		if re.match('".*"',arg):
+			arg=arg.strip('"')
+		margs[i]=arg
 	if nb_args > 0:	# Builds the expected stanza name of format macro_name OR macro_name(args_number)
 		stanza="{}({})".format(mname,nb_args)
 	else:
@@ -63,7 +69,9 @@ def expandMacro(macro,mconf):
 			for i in range(len(args)):	# Go 1 by 1 be default
 				if not args[i] in mapping:
 					mapping[args[i]]=margs[i]
-			s=mconf[stanza]["definition"].strip('"')
+			s=mconf[stanza]["definition"]
+			if re.match('".*"',mconf[stanza]["definition"]):
+				s=s.strip('"')
 			for arg in mapping:	# Now replace the argument with the values found
 				s=s.replace("${}$".format(arg),mapping[arg])
 			return {"success":True,"text":s}	

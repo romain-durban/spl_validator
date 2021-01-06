@@ -240,8 +240,9 @@ def p_new_scope(p):
     scope_level = scope_level +1
 
 def p_subpipeline(p):
-    'subpipeline : LBRACK commands RBRACK'
-    p[0] = {"type":"subpipeline","input":p[2]["input"],"output":p[2]["output"]}
+    '''subpipeline : LBRACK commands RBRACK
+                   | LBRACK PIPE commands RBRACK'''
+    p[0] = {"type":"subpipeline","input":p[len(p)-2]["input"],"output":p[len(p)-2]["output"]}
 
 #---------------------------
 # FILTERS
@@ -293,11 +294,13 @@ def p_filters_logic_factor(p):
 # ---
 
 def p_filter_eq(p):
-    'filter : field_name EQ value'
+    '''filter : field_name EQ value
+              | field_name EQ value_op'''
     p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3]["value"],"op":[p[2]]}
 
 def p_filter_neq(p):
-    'filter : field_name NEQ value'
+    '''filter : field_name NEQ value
+              | field_name NEQ value_op'''
     p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3]["value"],"op":[p[2]]}
 
 def p_filters_sub(p):
@@ -2996,6 +2999,8 @@ def p_value_string(p):
              | NAME
              | PATTERN
              | QUOTE QUOTE
+             | QLPAREN
+             | QRPAREN
              | op_names"""
     p[0] = {"type":"value","value":""}
     if len(p) == 4:
@@ -3029,6 +3034,16 @@ def p_values_list(p):
 def p_value_subsearch(p):
     'value : subsearch'
     p[0] = {"type":"value","value":"[...]"}
+
+def p_value_op(p):
+    '''value_op : PLUS
+                | MINUS
+                | TIMES
+                | DIVIDE
+                | COMMA
+                | DOT
+                | COLON'''
+    p[0] = {"type":"value","value":p[1]}
 
 '''
 def p_empty(p):
@@ -3128,7 +3143,6 @@ def analyze(s,verbose=False,print_errs=True,macro_files=[]):
     try:
         params["verbose"]=verbose
         params["print_errs"]=print_errs
-        init_analyser()
         if len(macro_files) > 0:
             res = macros.handleMacros(s,macro_files)
             if res["unique_macros_found"] > 0:

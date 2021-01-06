@@ -11,8 +11,8 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='index=download | timechart span=1d count(file) as count | x11 mult15(count)'
+s='index=download | `test("blah")`'
 
 print(s)
 
-spl_validator.analyze(s,verbose=True,macro_files=[])
+spl_validator.analyze(s,verbose=True,macro_files=["lib/macros.conf"])
