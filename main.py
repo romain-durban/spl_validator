@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='index=idx | union datamodel:\"internal_server.splunkdaccess\" [search index=a]'
+s='index=download | timechart span=1d count(file) as count | x11 mult15(count)'
 
 print(s)
 

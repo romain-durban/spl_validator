@@ -143,5 +143,12 @@
     "typer" : {"token_name":"CMD_TYPER","args":["eventtypes","maxlen"],"created_fields":["eventtype"]},
     "union" : {"token_name":"CMD_UNION","args":["maxtime","maxout","timeout"],"created_fields":[]},
     "uniq" : {"token_name":"CMD_UNIQ","args":[],"created_fields":[]},
-    "where" : {"token_name":"CMD_WHERE","args":[],"created_fields":[]}
+    "untable" : {"token_name":"CMD_UNTABLE","args":[],"created_fields":[]},
+    "walklex" : {"token_name":"CMD_WALKLEX","args":["index","prefix","pattern","splunk_server","splunk_server_group","type"],"created_fields":{"field":["field"],"others":["term"]}},
+    "where" : {"token_name":"CMD_WHERE","args":[],"created_fields":[]},
+    "x11" : {"token_name":"CMD_X11","args":[],"created_fields":[]},
+    "xmlkv" : {"token_name":"CMD_XMLKV","args":["maxinputs"],"created_fields":[]},
+    "xmlunescape" : {"token_name":"CMD_XMLUNESCAPE","args":["maxinputs"],"created_fields":[]},
+    "xpath" : {"token_name":"CMD_XPATH","args":["outfield","field","default"],"created_fields":[]},
+    "xyseries" : {"token_name":"CMD_XYSERIES","args":["format","grouped","sep"],"created_fields":[]}
 }

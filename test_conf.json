@@ -501,6 +501,36 @@
 			"exp_err":0,
 			"tags":["dbinspect","valid","splunk_doc","eval","stats"]
 		},
+		"splunk_dedup_1": {
+			"search":"index=imap invalid | dedup host",
+			"exp_err":0,
+			"tags":["search","dedup","valid","splunk_doc"]
+		},
+		"splunk_dedup_2": {
+			"search":"index=imap invalid | dedup source sortby +_time",
+			"exp_err":0,
+			"tags":["search","dedup","valid","splunk_doc"]
+		},
+		"splunk_dedup_3": {
+			"search":"index=imap invalid | dedup source sortby -_size",
+			"exp_err":0,
+			"tags":["search","dedup","valid","splunk_doc"]
+		},
+		"splunk_dedup_4": {
+			"search":"index=imap invalid | dedup 3 source",
+			"exp_err":0,
+			"tags":["search","dedup","valid","splunk_doc"]
+		},
+		"splunk_dedup_5": {
+			"search":"index=imap invalid | dedup 2 source host",
+			"exp_err":0,
+			"tags":["search","dedup","valid","splunk_doc"]
+		},
+		"splunk_dedup_6": {
+			"search":"index=imap invalid | dedup consecutive=true source host",
+			"exp_err":0,
+			"tags":["search","dedup","valid","splunk_doc"]
+		},
 		"splunk_delete_1": {
 			"search":"index=insecure | regex _raw = \"\\d{3}-\\d{2}-\\d{4}\" | delete",
 			"exp_err":0,
@@ -571,20 +601,95 @@
 			"exp_err":0,
 			"tags":["search","erex","valid","splunk_doc","top"]
 		},
+		"splunk_eval_1": {
+			"search":"index=idx | eval velocity=distance/time",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc"]
+		},
+		"splunk_eval_2": {
+			"search":"index=idx | eval error = if(status == 200, \"OK\", \"Problem\")",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc"]
+		},
+		"splunk_eval_3": {
+			"search":"index=idx | eval 'low-user' = lower(username)",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc"]
+		},
+		"splunk_eval_4": {
+			"search":"index=perfmon sourcetype=Perfmon* counter=* Value=* | eval {counter} = Value",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc"]
+		},
+		"splunk_eval_5": {
+			"search":"index=idx | eval sum_of_areas = pi() * pow(radius_a, 2) + pi() * pow(radius_b, 2)",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc"]
+		},
+		"splunk_eval_6": {
+			"search":"index=idx | eval error_msg = case(error == 404, \"Not found\", error == 500, \"Internal Server Error\", error == 200, \"OK\")",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc"]
+		},
+		"splunk_eval_7": {
+			"search":"index=idx | eval full_name = first_name.\" \".last_name",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc"]
+		},
+		"splunk_eval_8": {
+			"search":"index=idx | eval full_name = first_name.\" \".last_name, low_name = lower(full_name)",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc"]
+		},
+		"splunk_eval_9": {
+			"search":"index=idx | eval x=\"$\".tostring(x,\"commas\")",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc"]
+		},
+		"splunk_eval_10": {
+			"search":"sourcetype=A OR sourcetype=B | eval phone=coalesce(number,subscriberNumber) | transaction phone maxspan=2m",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc","transaction"]
+		},
+		"splunk_eval_11": {
+			"search":"source=all_month.csv | eval Description=case(depth<=70, \"Shallow\", depth>70 AND depth<=300, \"Mid\", depth>300, \"Deep\") | stats count min(mag) max(mag) by Description",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc"]
+		},
+		"splunk_eval_12": {
+			"search":"sourcetype=access_* | eval network=if(cidrmatch(\"182.236.164.11/16\", clientip), \"local\", \"other\")",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc"]
+		},
+		"splunk_eval_13": {
+			"search":"sourcetype=\"cisco:esa\" mailfrom=* | eval accountname=split(mailfrom,\"@\"), from_user=mvindex(accountname,0), from_domain=mvindex(accountname,-1) | table mailfrom, from_user, from_domain",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc","table"]
+		},
+		"splunk_eval_14": {
+			"search":"sourcetype=\"cisco:esa\" mailfrom=*| eval accountname=split(mailfrom,\"@\"), from_domain=mvindex(accountname,-1), location=if(match(from_domain, \"[^\n\r\\s]+\\.(com|net|org)\"), \"local\", \"abroad\") | stats count BY location",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc","stats"]
+		},
+		"splunk_eval_15": {
+			"search":"sourcetype=access_* | transaction clientip maxspan=10m | eval durationstr=tostring(duration,\"duration\")",
+			"exp_err":0,
+			"tags":["search","eval","valid","splunk_doc","transaction"]
+		},
 		"splunk_eventcount_1": {
 			"search":"| eventcount",
 			"exp_err":0,
-			"tags":["search","eventcount","valid","splunk_doc"]
+			"tags":["eventcount","valid","splunk_doc"]
 		},
 		"splunk_eventcount_2": {
 			"search":"| eventcount summarize=false index=_* report_size=true",
 			"exp_err":0,
-			"tags":["search","eventcount","valid","splunk_doc"]
+			"tags":["eventcount","valid","splunk_doc"]
 		},
 		"splunk_eventcount_3": {
 			"search":"| eventcount summarize=false index=* index=_*",
 			"exp_err":0,
-			"tags":["search","eventcount","valid","splunk_doc"]
+			"tags":["eventcount","valid","splunk_doc"]
 		},
 		"splunk_eventstats_1": {
 			"search":"host=www1 | transaction clientip host maxspan=30s maxpause=5s | eventstats avg(duration) AS avgdur",
@@ -645,6 +750,26 @@
 			"search":"index=idx | rename totalCount as Count firstTime as \"First Event\" lastTime as \"Last Event\" recentTime as \"Last Update\" | table sourcetype Count \"First Event\" \"Last Event\" \"Last Update\" | fieldformat Count=tostring(Count, \"commas\") | fieldformat \"First Event\"=strftime('First Event', \"%c\") | fieldformat \"Last Event\"=strftime('Last Event', \"%c\") | fieldformat \"Last Update\"=strftime('Last Update', \"%c\")",
 			"exp_err":0,
 			"tags":["search","fiedformat","valid","splunk_doc","rename","table"]
+		},
+		"splunk_fields_1": {
+			"search":"index=idx | fields - host, ip",
+			"exp_err":0,
+			"tags":["search","fields","valid","splunk_doc"]
+		},
+		"splunk_fields_2": {
+			"search":"index=idx | fields host, ip | fields - _*",
+			"exp_err":0,
+			"tags":["search","fields","valid","splunk_doc"]
+		},
+		"splunk_fields_3": {
+			"search":"index=_internal sourcetype=\"splunkd\" | head 5 | fields - _raw _indextime _sourcetype _subsecond _serial | outputcsv MyTestCsvfile",
+			"exp_err":0,
+			"tags":["search","fields","valid","splunk_doc","head","outputcsv"]
+		},
+		"splunk_fields_4": {
+			"search":"index=idx | fields source, sourcetype, host, error*",
+			"exp_err":0,
+			"tags":["search","fields","valid","splunk_doc"]
 		},
 		"splunk_fieldsummary_1": {
 			"search":"index=_internal earliest=-15m latest=now | fieldsummary",
@@ -1626,6 +1751,51 @@
 			"exp_err":0,
 			"tags":["search","spath","valid","splunk_doc","rename","eval","mvexpand","table"]
 		},
+		"splunk_stats_1": {
+			"search":"sourcetype=access* | stats avg(kbps) BY host",
+			"exp_err":0,
+			"tags":["search","stats","valid","splunk_doc"]
+		},
+		"splunk_stats_2": {
+			"search":"sourcetype=access_combined | top limit=100 referer_domain | stats sum(count) AS total",
+			"exp_err":0,
+			"tags":["search","stats","valid","splunk_doc","top"]
+		},
+		"splunk_stats_3": {
+			"search":"index=idx | stats avg(*lay) BY date_hour",
+			"exp_err":0,
+			"tags":["search","stats","valid","splunk_doc"]
+		},
+		"splunk_stats_4": {
+			"search":"index=idx | stats dc(host)",
+			"exp_err":0,
+			"tags":["search","stats","valid","splunk_doc"]
+		},
+		"splunk_stats_5": {
+			"search":"index=idx | stats avg(field) BY mvfield dedup_splitvals=true",
+			"exp_err":0,
+			"tags":["search","stats","valid","splunk_doc"]
+		},
+		"splunk_stats_6": {
+			"search":"sourcetype=access_* | stats count(eval(method=\"GET\")) AS GET, count(eval(method=\"POST\")) AS POST BY host",
+			"exp_err":0,
+			"tags":["search","stats","valid","splunk_doc"]
+		},
+		"splunk_stats_7": {
+			"search":"source=usgs place=*California* | stats count mean(mag), stdev(mag), var(mag) BY magType",
+			"exp_err":0,
+			"tags":["search","stats","valid","splunk_doc"]
+		},
+		"splunk_stats_8": {
+			"search":"sourcetype=access_* status=200 action=purchase | stats values(categoryId) AS Type, values(productName) AS \"Product Name\", sum(price) AS \"Revenue\" by productId | rename productId AS \"Product ID\" | eval Revenue=\"$ \".tostring(Revenue,\"commas\")",
+			"exp_err":0,
+			"tags":["search","stats","valid","splunk_doc","eval"]
+		},
+		"splunk_stats_9": {
+			"search":"sourcetype=\"cisco:esa\" mailfrom=* | eval accountname=split(mailfrom,\"@\"), from_domain=mvindex(accountname,-1) | stats count(eval(match(from_domain, \"[^\n\r\\s]+\\.com\"))) AS \".com\", count(eval(match(from_domain, \"[^\n\r\\s]+\\.net\"))) AS \".net\", count(eval(match(from_domain, \"[^\n\r\\s]+\\.org\"))) AS \".org\", count(eval(NOT match(from_domain, \"[^\n\r\\s]+\\.(com|net|org)\"))) AS \"other\"",
+			"exp_err":0,
+			"tags":["search","stats","valid","splunk_doc","eval"]
+		},
 		"splunk_strcat_1": {
 			"search":"index=idx | strcat sourceIP \"/\" destIP comboIP",
 			"exp_err":0,
@@ -1675,6 +1845,21 @@
 			"search":"index=idx | timechart span=1h sum(bytes) as SumOfBytes | streamstats global=f sum(*) as accu_total_*",
 			"exp_err":0,
 			"tags":["search","streamstats","valid","splunk_doc","timechart"]
+		},
+		"splunk_table_1": {
+			"search":"index=usgs_* source=usgs place=*California | table time, place, mag, depth",
+			"exp_err":0,
+			"tags":["search","table","valid","splunk_doc"]
+		},
+		"splunk_table_2": {
+			"search":"index=usgs_* source=usgs place=*California | rename lat as latitude lon as longitude | table time, place, lat*, lon*, mag",
+			"exp_err":0,
+			"tags":["search","table","valid","splunk_doc","rename"]
+		},
+		"splunk_table_3": {
+			"search":"sourcetype=access_* | dedup clientip | eval network=if(cidrmatch(\"192.0.0.0/16\", clientip), \"local\", \"other\") | table clientip, network",
+			"exp_err":0,
+			"tags":["search","table","valid","splunk_doc","dedup","eval"]
 		},
 		"splunk_tags_1": {
 			"search":"sourcetype=access_* | stats count by host sourcetype | tags",
@@ -1905,6 +2090,116 @@
 			"search":"index=idx | uniq",
 			"exp_err":0,
 			"tags":["search","uniq","valid","splunk_doc"]
+		},
+		"splunk_untable_1": {
+			"search":"sourcetype=access_* status=200 action=purchase | top categoryId | untable categoryId calculation value",
+			"exp_err":0,
+			"tags":["search","untable","valid","splunk_doc","top"]
+		},
+		"splunk_untable_2": {
+			"search":"index=idx | table _time EventCode Message | streamstats count as recno | untable recno FieldName FieldValue",
+			"exp_err":0,
+			"tags":["search","untable","valid","splunk_doc","table","streamstats"]
+		},
+		"splunk_untable_3": {
+			"search":"index=idx | table _time EventCode Message | streamstats count as recno | rename _time as time | untable recno FieldName FieldValue | xyseries recno FieldName FieldValue | rename time as _time",
+			"exp_err":0,
+			"tags":["search","untable","valid","splunk_doc","table","streamstats","rename","xyseries"]
+		},
+		"splunk_walklex_1": {
+			"search":"| walklex index=_internal | stats sum(count) BY term",
+			"exp_err":0,
+			"tags":["walklex","valid","splunk_doc","stats"]
+		},
+		"splunk_walklex_2": {
+			"search":"| walklex prefix=foo index=_internal index=_audit",
+			"exp_err":0,
+			"tags":["walklex","valid","splunk_doc","stats"]
+		},
+		"splunk_walklex_3": {
+			"search":"| walklex pattern=*bar type=fieldvalue index=_internal",
+			"exp_err":0,
+			"tags":["walklex","valid","splunk_doc","stats"]
+		},
+		"splunk_walklex_4": {
+			"search":"| walklex type=field index=_audit",
+			"exp_err":0,
+			"tags":["walklex","valid","splunk_doc","stats"]
+		},
+		"splunk_where_1": {
+			"search":"indx=idx | where like(ipaddress, \"198.%\")",
+			"exp_err":0,
+			"tags":["search","where","valid","splunk_doc"]
+		},
+		"splunk_where_2": {
+			"search":"host=\"CheckPoint\" | where like(src, \"10.9.165.%\") OR cidrmatch(\"10.9.165.0/25\", dst)",
+			"exp_err":0,
+			"tags":["search","where","valid","splunk_doc"]
+		},
+		"splunk_where_3": {
+			"search":"sourcetype=physicsjobs | where distance/time > 100",
+			"exp_err":0,
+			"tags":["search","where","valid","splunk_doc"]
+		},
+		"splunk_x11_1": {
+			"search":"index=download | timechart span=1d count(file) as count | x11 mult15(count)",
+			"exp_err":0,
+			"tags":["search","x11","valid","splunk_doc","timechart"]
+		},
+		"splunk_x11_2": {
+			"search":"index=download | timechart span=1d count(file) as count | x11 add20(count)",
+			"exp_err":0,
+			"tags":["search","x11","valid","splunk_doc","timechart"]
+		},
+		"splunk_xmlkv_1": {
+			"search":"index=idx | xmlkv",
+			"exp_err":0,
+			"tags":["search","xmlkv","valid","splunk_doc"]
+		},
+		"splunk_xmlkv_2": {
+			"search":"index=idx | xmlkv maxinputs=10000",
+			"exp_err":0,
+			"tags":["search","xmlkv","valid","splunk_doc"]
+		},
+		"splunk_xmlunescape_1": {
+			"search":"index=idx | xmlunescape",
+			"exp_err":0,
+			"tags":["search","xmlunescape","valid","splunk_doc"]
+		},
+		"splunk_xpath_2": {
+			"search":"sourcetype=\"xml\" | xpath outfield=instrument_id \"//DataSet[sname='BARC']/instrument_id\"",
+			"exp_err":0,
+			"tags":["search","xpath","valid","splunk_doc"]
+		},
+		"splunk_xpath_1": {
+			"search":"sourcetype=\"xml\" | xpath outfield=name \"//bar/@nickname\"",
+			"exp_err":0,
+			"tags":["search","xpath","valid","splunk_doc"]
+		},
+		"splunk_xpath_3": {
+			"search":"| makeresults | eval xml=\"<DataSet xmlns=\\\"\\\"><identity_id>1037669</identity_id><instrument_id>219383KM1</instrument_id><transaction_code>SEL</transaction_code><sname>TARC</sname><currency_code>USA</currency_code></DataSet>\" | xpath outfield=identity_id \"//DataSet/identity_id\" field=xml",
+			"exp_err":0,
+			"tags":["makeresults","xpath","valid","splunk_doc","eval"]
+		},
+		"splunk_xyseries_1": {
+			"search":"sourcetype=access_* status=200 action=purchase | top categoryId | xyseries categoryId count percent",
+			"exp_err":0,
+			"tags":["search","xyseries","valid","splunk_doc"]
+		},
+		"splunk_xyseries_2": {
+			"search":"sourcetype=access_combined_wcookie | stats count(host) count(productId) by clientip, referer_domain | xyseries clientip referer_domain count(host), count(productId)",
+			"exp_err":0,
+			"tags":["search","xyseries","valid","splunk_doc","stats"]
+		},
+		"splunk_xyseries_3": {
+			"search":"sourcetype=access_combined_wcookie | stats count(host) count(productId) by clientip, referer_domain | xyseries clientip referer_domain count(host), count(productId) sep=\"-\"",
+			"exp_err":0,
+			"tags":["search","xyseries","valid","splunk_doc","stats"]
+		},
+		"splunk_xyseries_4": {
+			"search":"sourcetype=access_combined_wcookie | stats count(host) count(productId) by clientip, referer_domain | xyseries clientip referer_domain count(host), count(productId) sep=\"-\" format=\"$AGG$ + $VAL$ TEST\"",
+			"exp_err":0,
+			"tags":["search","xyseries","valid","splunk_doc","stats"]
 		}
 
 	}

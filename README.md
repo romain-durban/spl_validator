@@ -177,7 +177,14 @@ SPL commands specification is done in the `spl_commands.json` file
 | typer | all args | | |
 | union | all args | | |
 | uniq | | | |
+| untable | | | |
+| walklex | all args | | |
 | where | | | |
+| x11 | | | |
+| xmlkv | all args | | |
+| xmlunescape | all args | | |
+| xpath | all args | | |
+| xyseries | all args | | |
 
 
 ## Testing

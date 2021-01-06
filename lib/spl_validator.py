@@ -661,6 +661,13 @@ def p_commands_names(p):
                       | CMD_TYPER
                       | CMD_UNION
                       | CMD_UNIQ
+                      | CMD_UNTABLE
+                      | CMD_WALKLEX
+                      | CMD_X11
+                      | CMD_XMLKV
+                      | CMD_XMLUNESCAPE
+                      | CMD_XPATH
+                      | CMD_XYSERIES
                       '''
     # Removed CMD_WHERE on purpose because it also is a operator in various commands
     # and this creates unwanted behaviours
@@ -792,11 +799,19 @@ def p_command_rename(p):
 
 # DEDUP
 def p_command_dedup_args(p):
-    '''command : CMD_DEDUP NUMBER fields_list args_list SORTBY_CLAUSE sort_clause
+    '''command : CMD_DEDUP NUMBER args_list fields_list args_list SORTBY_CLAUSE sort_clause
+               | CMD_DEDUP NUMBER fields_list args_list SORTBY_CLAUSE sort_clause
+               | CMD_DEDUP NUMBER args_list fields_list SORTBY_CLAUSE sort_clause
+               | CMD_DEDUP args_list fields_list args_list SORTBY_CLAUSE sort_clause
                | CMD_DEDUP fields_list args_list SORTBY_CLAUSE sort_clause
+               | CMD_DEDUP args_list fields_list SORTBY_CLAUSE sort_clause
+               | CMD_DEDUP NUMBER args_list fields_list args_list
                | CMD_DEDUP NUMBER fields_list args_list
-               | CMD_DEDUP fields_list args_list'''
-    args=None
+               | CMD_DEDUP NUMBER args_list fields_list
+               | CMD_DEDUP args_list fields_list args_list
+               | CMD_DEDUP fields_list args_list
+               | CMD_DEDUP args_list fields_list'''
+    args={}
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[],"cmd":p[1]}
     for pp in p[2:]:
         if isinstance(pp,dict):
@@ -856,7 +871,8 @@ def p_command_basic_no_field(p):
                | CMD_TAGS
                | CMD_TSCOLLECT
                | CMD_TYPER
-               | CMD_UNIQ'''
+               | CMD_UNIQ
+               | CMD_XMLUNESCAPE'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[],"cmd":p[1]}
     p[0] = commands_args_and_fields_output_update(p,[])
 
@@ -873,7 +889,8 @@ def p_command_basic_single_arg(p):
                | CMD_APPENDPIPE args_term
                | CMD_CEFOUT args_term
                | CMD_HISTORY args_term
-               | CMD_OUTPUTTEXT args_term'''
+               | CMD_OUTPUTTEXT args_term
+               | CMD_XMLUNESCAPE args_term'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[],"cmd":p[1]}
     checkArgs(p,p[2]["args"])
     p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
@@ -901,7 +918,8 @@ def p_command_basic_only_args(p):
                | CMD_SCRUB args_list
                | CMD_TSCOLLECT args_list
                | CMD_TYPEAHEAD args_list
-               | CMD_TYPER args_list'''
+               | CMD_TYPER args_list
+               | CMD_WALKLEX args_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[],"cmd":p[1]}
     checkArgs(p,p[2]["args"])
     p[0]=commands_args_and_fields_output_update(p,p[2]["args"])
@@ -932,7 +950,8 @@ def p_command_basic_args_and_fields(p):
                | CMD_MEVENTCOLLECT command_params_fields_or_args
                | CMD_SCRIPT command_params_fields_or_args
                | CMD_SELFJOIN command_params_fields_or_args
-               | CMD_TAGS command_params_fields_or_args'''
+               | CMD_TAGS command_params_fields_or_args
+               | CMD_XYSERIES command_params_fields_or_args'''
     p[0] = {"type":"command","input":p[2]["fields"],"output":[],"fields-effect":"none","content":[],"cmd":p[1]}
     checkArgs(p,p[2]["args"])
     p[0] = commands_args_and_fields_output_update(p,p[2]["args"])
@@ -1057,6 +1076,23 @@ def commands_args_and_fields_output_update(p,args):
                 out["output"].append("tag::"+f)
     elif p[1] == "typeahead":
         out["fields-effect"] = "generate"
+    elif p[1] == "walklex":
+        out["fields-effect"] = "generate"
+        if not "index" in args:
+            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Missing mandatory index argument in command {}".format(p[1]),None,value="index")
+        if "type" in args:
+            if args["type"] == "field":
+                out["output"] += cmd_conf[p[1]]["created_fields"]["field"]
+            else:
+                out["output"] += cmd_conf[p[1]]["created_fields"]["others"]
+        else:
+            out["output"] += cmd_conf[p[1]]["created_fields"]["others"]
+    elif p[1] == "xyseries":
+        out["fields-effect"] = "replace"
+        if len(p[0]["input"]) > 2:
+            out["output"].append(p[0]["input"][0])
+        else:
+            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"At least 3 fields required in command {}".format(p[1]),None,value="fields_missing")
 
     return out
 
@@ -2588,6 +2624,58 @@ def p_command_union_datasets(p):
                 p[0]["nb"] = p[1]["nb"] + 1
         elif not pp == "," :
             p[0]["content"][-1] = p[0]["content"][-1]+pp
+
+# UNTABLE
+def p_command_untable(p):
+    '''command : CMD_UNTABLE field_name field_name field_name'''
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"replace","content":[],"cmd":p[1]}
+    for pp in p[2:]:
+        p[0]["input"].append(pp["field"])
+        p[0]["output"].append(pp["field"])
+
+# X11
+def p_command_x11(p):
+    '''command : CMD_X11 NAME LPAREN field_name RPAREN AS_CLAUSE field_name
+               | CMD_X11 NAME LPAREN field_name RPAREN'''
+    p[0] = {"type":"command","input":[p[4]["field"]],"output":[],"fields-effect":"extend","content":[],"cmd":p[1]}
+    if len(p) > 6:
+        p[0]["output"].append(p[len(p)-1]["field"])
+    else:
+        p[0]["output"].append("{}({})".format(p[2],p[4]["field"]))
+
+# XMLKV
+def p_command_xmlkv(p):
+    '''command : CMD_XMLKV args_term field_name
+               | CMD_XMLKV field_name args_term
+               | CMD_XMLKV args_term
+               | CMD_XMLKV field_name
+               | CMD_XMLKV'''
+    p[0] = {"type":"command","input":["_raw"],"output":[],"fields-effect":"extend","content":[],"cmd":p[1]}
+    for pp in p[2:]:
+        if pp["type"] == "args_term":
+            checkArgs(p,pp["args"])
+        elif pp["type"] == "field_name":
+            p[0]["input"] = [pp["field"]]
+
+# XPATH
+def p_command_xpath(p):
+    '''command : CMD_XPATH args_list STRING args_list
+               | CMD_XPATH args_list STRING
+               | CMD_XPATH STRING args_list
+               | CMD_XPATH STRING'''
+    p[0] = {"type":"command","input":["_raw"],"output":["xpath"],"fields-effect":"extend","content":[],"cmd":p[1]}
+    args={}
+    for pp in p[2:]:
+        if isinstance(pp,dict):
+            if pp["type"] == "args_list":
+                extendDict(args,pp["args"])
+        else:
+            p[0]["content"].append(pp)
+    if "field" in args:
+        p[0]["input"] = [args["field"]]
+    if "outfield" in args:
+        p[0]["output"] = [args["outfield"]]
+    checkArgs(p,args)
 
 #--------------------
 # Generic args positioning
