@@ -11,8 +11,8 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='index=download | `test("blah")`'
+s='| makeresults count=3 | streamstats count | eval test=if(count==2,\"yes\",\"no\") | streamstats count as testCount reset_after=\"(\"match(test,\"yes\")\")\"'
 
 print(s)
 
-spl_validator.analyze(s,verbose=True,macro_files=["lib/macros.conf"])
+spl_validator.analyze(s,verbose=True,macro_files=[])

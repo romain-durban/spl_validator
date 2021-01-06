@@ -168,7 +168,7 @@ precedence = (
     ('left', 'EQ', 'NEQ', 'COMP_OP', 'DEQ'),
     ('left', 'PLUS', 'MINUS'),
     ('left', 'TIMES', 'DIVIDE'),
-    ('right','AND_OP'),
+    ('right','AND_OP', 'IMPL_AND'),
     ('left','OR_OP'),
     ('right', 'UMINUS','NOT_OP')
 )
@@ -252,7 +252,7 @@ def p_subpipeline(p):
 
 def p_filters(p):
     '''filters : filters OR_OP filters_logic_term
-               | filters filters_logic_term
+               | filters filters_logic_term %prec IMPL_AND
                | filters_logic_term'''
     if len(p) == 4:
         p[0] = {"type":"filters","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
@@ -262,7 +262,7 @@ def p_filters(p):
 def p_filters_logic_term(p):
     '''filters_logic_term : filters_logic_term AND_OP filters_logic_factor
                           | filters_logic_term COMMA filters_logic_factor
-                          | filters_logic_term filters_logic_factor
+                          | filters_logic_term filters_logic_factor %prec IMPL_AND
                           | filters_logic_factor'''
     if len(p) == 4:
         p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + ["and"] + p[3]["op"]}
@@ -273,7 +273,7 @@ def p_filters_logic_term(p):
 
 def p_filters_logic_factor(p):
     '''filters_logic_factor : filter
-                            | filter filters_logic_factor
+                            | filter filters_logic_factor %prec IMPL_AND
                             | filter COMMA filters_logic_factor
                             | filter AND_OP filters_logic_factor
                             | NOT_OP filters_logic_factor
@@ -294,13 +294,13 @@ def p_filters_logic_factor(p):
 # ---
 
 def p_filter_eq(p):
-    '''filter : field_name EQ value
-              | field_name EQ value_op'''
+    '''filter : field_name_logic EQ value
+              | field_name_logic EQ value_op'''
     p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3]["value"],"op":[p[2]]}
 
 def p_filter_neq(p):
-    '''filter : field_name NEQ value
-              | field_name NEQ value_op'''
+    '''filter : field_name_logic NEQ value
+              | field_name_logic NEQ value_op'''
     p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3]["value"],"op":[p[2]]}
 
 def p_filters_sub(p):
@@ -308,17 +308,17 @@ def p_filters_sub(p):
     p[0] = {"type":"filter_subsearch","input":p[1]["output"],"output":[],"value":"","op":[]}
 
 def p_filter_comp_1(p):
-    '''filter : field_name COMP_OP NUMBER
-              | field_name COMP_OP FLOAT'''
+    '''filter : field_name_logic COMP_OP NUMBER
+              | field_name_logic COMP_OP FLOAT'''
     p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3],"op":[p[2]]}
 
 def p_filter_comp_(p):
-    '''filter : NUMBER COMP_OP field_name
-              | FLOAT COMP_OP field_name'''
+    '''filter : NUMBER COMP_OP field_name_logic
+              | FLOAT COMP_OP field_name_logic'''
     p[0] = {"type":"filter","input":[p[3]["field"]],"output":[],"value":p[1],"op":[p[2]]}
 
 def p_filter_in(p):
-    '''filter : field_name IN_OP LPAREN values_list RPAREN'''
+    '''filter : field_name_logic IN_OP LPAREN values_list RPAREN'''
     p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[4]["values"],"op":[p[2]]}
 
 def p_filter_phrases(p):
@@ -327,7 +327,7 @@ def p_filter_phrases(p):
     p[0] = {"type":"filter_phrase","input":[],"output":[],"value":p[3],"op":[p[1]]}
 
 def p_filter_any(p):
-    '''filter : field_name EQ TIMES
+    '''filter : field_name_logic EQ TIMES
               | TIMES'''
     if len(p) > 2:
         p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3],"op":[p[2]]}
@@ -335,7 +335,7 @@ def p_filter_any(p):
         p[0] = {"type":"filter","input":[],"output":[],"value":p[1],"op":[]}
 
 def p_filter_notany(p):
-    'filter : field_name NEQ TIMES'
+    'filter : field_name_logic NEQ TIMES'
     p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3],"op":[p[2]]}
 
 def p_filter_raw(p):
@@ -389,7 +389,8 @@ def p_expression_logic_term(p):
 def p_expression_logic_factor(p):
     '''expression_logic_factor : expression_value
                                | NOT_OP expression_logic_factor
-                               | LPAREN expression_logic_exp RPAREN'''
+                               | LPAREN expression_logic_exp RPAREN
+                               | QLPAREN expression_logic_exp QRPAREN'''
     s=""
     for pp in p[1:]:
         if isinstance(pp,dict) and "content" in pp:
@@ -2377,21 +2378,12 @@ def p_command_streamstats(p):
     checkArgs(p,args)
 
 def p_command_streamstats_args(p):
-    '''streamstats_args : streamstats_args COMMA streamstats_args_term
-                        | streamstats_args streamstats_args_term
-                        | streamstats_args_term'''
+    '''streamstats_args : streamstats_args COMMA args_term
+                        | streamstats_args args_term
+                        | args_term'''
     p[0] = {"type":"streamstats_args","args":p[1]["args"]}
     if len(p) > 2:
         extendDict(p[0]["args"],p[len(p)-1]["args"])
-
-def p_command_streamstats_args_term(p):
-    '''streamstats_args_term : args_term
-                             | NAME EQ QLPAREN expression QRPAREN'''
-    p[0] = {"type":"streamstats_args_term","args":{}}
-    if isinstance(p[1],dict):
-        p[0]["args"] = p[1]["args"]
-    else:
-        p[0]["args"][p[1]] = "\"(\"{}\")\"".format(p[4]["content"])
 
 # TAIL
 def p_command_tail(p):
@@ -2810,13 +2802,6 @@ def p_agg_or_eval_list(p):
     if p[1]["type"] == "eval_expr_fun":
         p[0]["content"].append(p[1]["content"])
 
-def p_agg_or_eval(p):
-    '''agg_or_eval : agg_term
-                   | eval_expr_fun'''
-    p[0] = {"type":"agg_or_eval","input":p[1]["input"],"output":p[1]["output"],"content":[]}
-    if p[1]["type"] == "eval_expr_fun":
-        p[0]["content"].append(p[1]["content"])
-
 #---------------------------
 # FIELDS
 #---------------------------
@@ -2887,6 +2872,19 @@ def p_field_name_subsearch(p):
     p[0] = p[1]
     p[0]["field"]=""
 
+#Special rule without parenthesis to use in logic expressions
+def p_field_name_logic(p):
+    '''field_name_logic : NAME
+                        | PATTERN
+                        | STRING
+                        | commands_names
+                        | op_names
+                        | subsearch'''
+    p[0] = {"type":"field_name","field":p[1]}
+    if isinstance(p[1],dict) and p[1]["type"] == "subsearch":
+        p[0] = p[1]
+        p[0]["field"]=""
+
 def p_field_or_num_list(p):
     '''field_or_num_list : field_or_num_list field_or_num
                          | field_or_num'''
@@ -2936,7 +2934,8 @@ def p_args_value(p):
                   | TIMES
                   | chart_limit
                   | op_names
-                  | commands_names'''
+                  | commands_names
+                  | QLPAREN args_value QRPAREN'''
     p[0] = {"type":"args_value","value":""}
     if "type" in p[1]:
         if p[1]["type"] == "eval_expr_fun_value":
@@ -2946,7 +2945,10 @@ def p_args_value(p):
         elif "content" in p[1]:
             p[0]["value"] = p[1]["content"]
     else:
-        p[0]["value"] = p[1]
+        if len(p) > 2:
+            p[0]["value"] = "({})".format(p[2]["value"])
+        else:
+            p[0]["value"] = p[1]
 
 def p_basic_args_list(p):
     '''basic_args_list : basic_args_list basic_args_term
@@ -3143,6 +3145,7 @@ def analyze(s,verbose=False,print_errs=True,macro_files=[]):
     try:
         params["verbose"]=verbose
         params["print_errs"]=print_errs
+        init_analyser()
         if len(macro_files) > 0:
             res = macros.handleMacros(s,macro_files)
             if res["unique_macros_found"] > 0:
