@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='| makeresults | eval search=trim(replace(search,"\\"",""))'
+s='| from datamodel:"Authentication"."Authentication"'
 
 print(s)
 

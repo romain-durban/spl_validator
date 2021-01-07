@@ -31,7 +31,7 @@ def loadFile(fpath):
 # and "text" with either the error message or the expanded macro
 def expandMacro(macro,mconf):
 	# Expected format : macro_name OR macro_name(arg1) OR macro_name(arg1,arg2) OR macro_name(name1=arg1,name2=arg2)
-	reg = re.compile('(?P<macro_name>[a-zA-Z][a-zA-Z0-9_\.]*)(\((?P<args>[^,\(\)]+(,[^,\(\)]+)*)\))?')
+	reg = re.compile('(?P<macro_name>[a-zA-Z][a-zA-Z0-9_\.-]*)(\((?P<args>[^,\(\)]+(,[^,\(\)]+)*)\))?')
 	m = reg.search(macro)
 	mname = m.group("macro_name")
 	margs = m.group("args")

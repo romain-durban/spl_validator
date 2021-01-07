@@ -66,7 +66,7 @@ tokens = [
     'DEQ','EQ','NEQ','PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'MOD', 'LPAREN','RPAREN','QLPAREN','QRPAREN','LBRACK','RBRACK','COMMA',
     'NUMBER', 'FLOAT', 'QUOTE', 'COMP_OP', 'PIPE', 'DOT', 'COLON',
     'MACRO',
-    'NAME','STRING','PATTERN','TIMESPECIFIER','DATE'
+    'NAME','STRING','PATTERN','TIMESPECIFIER','DATE','TEXT'
 ] + list(set(reserved.values())) + list(set([cmd_conf[cmd]["token_name"] for cmd in cmd_conf]))
 
 literals = []
@@ -112,7 +112,7 @@ def t_DATE(t):
 #Strings
 # Patterns (having a starting and/or trailing *, be careful to not catch simple multiplications)
 def t_PATTERN(t):
-    r'(\*[^\*\s]+\*|\*[a-zA-Z_\.\{\}\-:<>/\\]+|[a-zA-Z0-9_\.\{\}\-:<>/\\]+\*)'
+    r'(\*[a-zA-Z_\.\{\}\-:<>/\\\*]+|[a-zA-Z0-9_\.\{\}\-:<>/\\\*]+\*)'
     return t
 
 def t_STRING(t):
@@ -152,6 +152,22 @@ def t_FLOAT(t):
 def t_NUMBER(t):
     r'\d+'
     t.value = int(t.value)
+    return t
+
+def t_TEXT(t):
+    r'[^\| =><\[\]"\'\(\)\+\*-/!\,]+'
+    global cmd_conf
+    if t.value.lower() in cmd_conf:
+        t.value = t.value.lower()
+        t.type = cmd_conf[t.value.lower()]["token_name"]    # Check for command names, lowercase
+    else:
+        t.type = reserved.get(t.value.lower(),"TEXT")       # Check for reserved words, lowercase
+        if not t.type == "TEXT":
+            t.value = t.value.lower()
+    if t.value.isdigit():
+        t.type = "NUMBER"
+    if re.match(r'^\d+\.\d+$', t.value):
+        t.type = "FLOAT"
     return t
 
 def t_error(t):
@@ -458,12 +474,6 @@ def p_expression_fun_call(p):
     else:
         p[0]["content"]="{}()".format(p[1])
 
-
-def p_expression_fun(p):
-    '''expr_fun : NAME
-                | CASE_OP
-                | commands_names'''
-    p[0] = {"type":"expression_value","content":p[1],"input":[],"output":[]}
 
 def p_expression_fun_args(p):
     '''expression_fun_args : expression_fun_args COMMA expression 
@@ -1529,10 +1539,13 @@ def p_command_format(p):
 # FROM
 def p_command_from(p):
     '''command : CMD_FROM field_name COLON field_name
+               | CMD_FROM field_name STRING DOT STRING
                | CMD_FROM field_name field_name
                | CMD_FROM field_name'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"generate","content":[],"cmd":p[1]}
-    if len(p) > 3:
+    if len(p) == 6:
+        p[0]["input"].append("{}{}.{}".format(p[2]["field"],p[3],p[5]))
+    elif len(p) > 3:
         p[0]["input"].append("{}:{}".format(p[2]["field"],p[len(p)-1]["field"]))
     else:
         arg=p[2]["field"]
@@ -2543,14 +2556,11 @@ def p_command_tstats_from(p):
                 p[0]["content"].append(pp["field"])
 
 def p_command_tstats_where(p):
-    '''tstats_where : CMD_WHERE filters
-                    | CMD_WHERE field_name IN_OP LPAREN values_list RPAREN'''
+    '''tstats_where : CMD_WHERE filters'''
     p[0] = {"type":"tstats_where","input":[],"output":[],"content":[],"args":{}}
     if p[2]["type"] == "filters":
         p[0]["input"] += p[2]["input"]
         p[0]["content"] += p[2]["content"]
-    elif p[2]["type"] == "field_name":
-        p[0]["input"].append(pp["field"])
 
 def p_command_tstats_by(p):
     '''tstats_by : BY_CLAUSE fields_list args_term
@@ -2948,7 +2958,10 @@ def p_args_value(p):
                   | chart_limit
                   | op_names
                   | commands_names
-                  | QLPAREN args_value QRPAREN'''
+                  | QLPAREN args_value QRPAREN
+                  | AND_OP
+                  | OR_OP
+                  | NOT_OP'''
     p[0] = {"type":"args_value","value":""}
     if "type" in p[1]:
         if p[1]["type"] == "eval_expr_fun_value":
@@ -3016,12 +3029,17 @@ def p_value_string(p):
              | QUOTE QUOTE
              | QLPAREN
              | QRPAREN
-             | op_names"""
+             | op_names
+             | DOT STRING
+             | DOT NAME
+             | TEXT"""
     p[0] = {"type":"value","value":""}
     if len(p) == 4:
         p[0]["value"] = p[2]
     elif len(p) == 3:
         p[0]["value"] = ""
+        if p[1] == ".":
+            p[0]["value"] = "{}{}".format(p[1],p[2])
     else:
         p[0]["value"] = str(p[1])
 
@@ -3039,10 +3057,13 @@ def p_value_minus(p):
 
 def p_values_list(p):
     '''values_list : values_list COMMA value
+                   | values_list value
                    | value'''
     p[0] = {"type":"values_list","values":[]}
     if len(p) == 4:
         p[0]["values"] = p[1]["values"] + [p[3]["value"]]
+    elif len(p) == 3:
+        p[0]["values"] = p[1]["values"] + [p[2]["value"]]
     else:
         p[0]["values"].append(p[1]["value"])
 
