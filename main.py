@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='| makeresults count=3 | streamstats count | eval test=if(count==2,\"yes\",\"no\") | streamstats count as testCount reset_after=\"(\"match(test,\"yes\")\")\"'
+s='| makeresults | eval search=trim(replace(search,"\\"",""))'
 
 print(s)
 

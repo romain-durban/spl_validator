@@ -112,7 +112,7 @@ def t_DATE(t):
 #Strings
 # Patterns (having a starting and/or trailing *, be careful to not catch simple multiplications)
 def t_PATTERN(t):
-    r'(\*[^\*\s]+\*|\*[a-zA-Z_\.\{\}\-:<>/]+|[a-zA-Z0-9_\.\{\}\-:<>/]+\*)'
+    r'(\*[^\*\s]+\*|\*[a-zA-Z_\.\{\}\-:<>/\\]+|[a-zA-Z0-9_\.\{\}\-:<>/\\]+\*)'
     return t
 
 def t_STRING(t):
@@ -125,7 +125,7 @@ def t_STRING(t):
     return t
 
 def t_NAME(t):
-    r'([a-zA-Z0-9_\{\}/]*<<[a-zA-Z0-9_\{\}/@]+>>[a-zA-Z0-9_\{\}/]*|[a-zA-Z0-9_\{\}/\$][a-zA-Z0-9_\.\{\}\-:/@]*)'
+    r'([a-zA-Z0-9_\{\}/\\]*<<[a-zA-Z0-9_\{\}/@\\]+>>[a-zA-Z0-9_\{\}/\\]*|[a-zA-Z0-9_\{\}\$\\][a-zA-Z0-9_\.\{\}\-:/@\\]*)'
     global cmd_conf
     if t.value.lower() in cmd_conf:
         t.value = t.value.lower()
@@ -309,13 +309,23 @@ def p_filters_sub(p):
 
 def p_filter_comp_1(p):
     '''filter : field_name_logic COMP_OP NUMBER
-              | field_name_logic COMP_OP FLOAT'''
-    p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":p[3],"op":[p[2]]}
+              | field_name_logic COMP_OP FLOAT
+              | field_name_logic COMP_OP subsearch'''
+    p[0] = {"type":"filter","input":[p[1]["field"]],"output":[],"value":"","op":[p[2]]}
+    if isinstance(p[3],dict):
+        p[0]["value"]=""
+    else:
+        p[0]["value"]=p[3]
 
 def p_filter_comp_(p):
     '''filter : NUMBER COMP_OP field_name_logic
-              | FLOAT COMP_OP field_name_logic'''
-    p[0] = {"type":"filter","input":[p[3]["field"]],"output":[],"value":p[1],"op":[p[2]]}
+              | FLOAT COMP_OP field_name_logic
+              | subsearch COMP_OP field_name_logic'''
+    p[0] = {"type":"filter","input":[p[3]["field"]],"output":[],"value":"","op":[p[2]]}
+    if isinstance(p[1],dict):
+        p[0]["value"]=""
+    else:
+        p[0]["value"]=p[1]
 
 def p_filter_in(p):
     '''filter : field_name_logic IN_OP LPAREN values_list RPAREN'''
@@ -354,29 +364,19 @@ def p_filter_error(p):
 
 # Logical conditions
 def p_expression_logic(p):
-    '''expression : expression_logic_exp'''
-    s=""
-    for pp in p[1:]:
-        if isinstance(pp,dict) and "content" in pp:
-            s += pp["content"]
-        else:
-            s += pp
-    p[0] = {"type":"expression","content":s,"input":[],"output":[]}
-
-def p_expression_logic_exp(p):
-    '''expression_logic_exp : expression_logic_term OR_OP expression_logic_term
-                            | expression_logic_term'''
+    '''expression : expression OR_OP expression_logic_term
+                  | expression_logic_term'''
     s=""
     for pp in p[1:]:
         if isinstance(pp,dict) and "content" in pp:
             s += pp["content"]
         else:
             s += " "+pp
-    p[0] = {"type":"expression_logic_exp","content":s,"input":[],"output":[]}
+    p[0] = {"type":"expression","content":s,"input":[],"output":[]}
 
 def p_expression_logic_term(p):
-    '''expression_logic_term : expression_logic_factor AND_OP expression_logic_term
-                             | expression_logic_factor expression_logic_term
+    '''expression_logic_term : expression_logic_term AND_OP expression_logic_factor
+                             | expression_logic_term expression_logic_factor
                              | expression_logic_factor'''
     s=" "
     for pp in p[1:]:
@@ -389,8 +389,8 @@ def p_expression_logic_term(p):
 def p_expression_logic_factor(p):
     '''expression_logic_factor : expression_value
                                | NOT_OP expression_logic_factor
-                               | LPAREN expression_logic_exp RPAREN
-                               | QLPAREN expression_logic_exp QRPAREN'''
+                               | LPAREN expression RPAREN
+                               | QLPAREN expression QRPAREN'''
     s=""
     for pp in p[1:]:
         if isinstance(pp,dict) and "content" in pp:
@@ -408,7 +408,11 @@ def p_expression_logic_factor_in(p):
 
 def p_expression_value(p):
     '''expression_value : expr_fun_call
-                        | value'''
+                        | value
+                        | commands_names
+                        | op_names
+                        | expression_value PATTERN
+                        | PATTERN expression_value'''
     s=""
     for pp in p[1:]:
         if isinstance(pp,dict):
@@ -422,36 +426,37 @@ def p_expression_value(p):
 
 # Handling here some unwanted tokenizing with "*"
 def p_expression_binop(p):
-    '''expression_value : expression_value PLUS expression_value
-                        | expression_value MINUS expression_value
-                        | expression_value TIMES expression_value
-                        | expression_value DIVIDE expression_value
-                        | expression_value DEQ expression_value
-                        | expression_value EQ expression_value
-                        | expression_value NEQ expression_value
-                        | expression_value COMP_OP expression_value
-                        | expression_value MOD expression_value
-                        | expression_value DOT expression_value
-                        | expression_value PATTERN
-                        | PATTERN expression_value
-                        | LPAREN expression_value RPAREN'''
+    '''expression_logic_factor : expression_logic_factor PLUS expression_logic_factor
+                               | expression_logic_factor MINUS expression_logic_factor
+                               | expression_logic_factor TIMES expression_logic_factor
+                               | expression_logic_factor DIVIDE expression_logic_factor
+                               | expression_logic_factor DEQ expression_logic_factor
+                               | expression_logic_factor EQ expression_logic_factor
+                               | expression_logic_factor NEQ expression_logic_factor
+                               | expression_logic_factor COMP_OP expression_logic_factor
+                               | expression_logic_factor MOD expression_logic_factor
+                               | expression_logic_factor DOT expression_logic_factor'''
     s=""
     for pp in p[1:]:
         if isinstance(pp,dict) and "content" in pp:
             s += pp["content"]
         else:
             s += pp
-    p[0] = {"type":"expression_value","content":s,"input":[],"output":[]}
+    p[0] = {"type":"expression_logic_factor","content":s,"input":[],"output":[]}
 
 # ---
 def p_expression_fun_call(p):
-    '''expr_fun_call : expr_fun LPAREN expression_fun_args RPAREN
-                     | expr_fun LPAREN RPAREN'''
-    p[0] = {"type":"expr_fun_call","content":[],"input":[],"output":[],"function":p[1]["content"]}
+    '''expr_fun_call : NAME LPAREN expression_fun_args RPAREN
+                     | NAME LPAREN RPAREN
+                     | commands_names LPAREN expression_fun_args RPAREN
+                     | commands_names LPAREN RPAREN
+                     | op_names LPAREN expression_fun_args RPAREN
+                     | op_names LPAREN RPAREN'''
+    p[0] = {"type":"expr_fun_call","content":[],"input":[],"output":[],"function":p[1]}
     if len(p) == 5:
-        p[0]["content"]="{}({})".format(p[1]["content"],p[3]["content"])
+        p[0]["content"]="{}({})".format(p[1],p[3]["content"])
     else:
-        p[0]["content"]="{}()".format(p[1]["content"])
+        p[0]["content"]="{}()".format(p[1])
 
 
 def p_expression_fun(p):
@@ -1304,6 +1309,7 @@ def p_command_contingency(p):
 # CONVERT
 def p_command_convert(p):
     '''command : CMD_CONVERT args_term convert_list
+               | CMD_CONVERT convert_list args_term
                | CMD_CONVERT convert_list'''
     p[0] = {"type":"command","input":[],"output":[],"fields-effect":"none","content":[],"cmd":p[1]}
     args={}
@@ -1452,7 +1458,7 @@ def p_command_extract(p):
 
 # FIELDFORMAT
 def p_command_fieldformat(p):
-    'command : CMD_FIELDFORMAT field_name EQ expression_value'
+    'command : CMD_FIELDFORMAT field_name EQ expression_logic_factor'
     p[0] = {"type":"command","input":[p[2]["field"]],"output":[],"fields-effect":"none","content":[p[4]["content"]],"cmd":p[1]}
 
 # FINDTYPES
@@ -2170,18 +2176,18 @@ def p_command_replace_term(p):
 
 # REST
 def p_command_rest(p):
-    '''command : CMD_REST args_list NAME args_list
-               | CMD_REST args_list NAME
-               | CMD_REST NAME args_list
-               | CMD_REST NAME'''
+    '''command : CMD_REST args_list value args_list
+               | CMD_REST args_list value
+               | CMD_REST value args_list
+               | CMD_REST value'''
     p[0] = {"type":"replace_list","input":[],"output":[],"fields-effect":"generate","content":[],"cmd":p[1]}
     args={}
     for pp in p[2:]:
         if isinstance(pp,dict):
             if pp["type"] == "args_list":
                 extendDict(args,pp["args"])
-        else:
-            p[0]["content"].append(pp)
+            elif pp["type"] == "value":
+                p[0]["content"].append(pp["value"])           
     for arg in args:
         if not arg in cmd_conf[p[1]]["args"]:
             p[0]["input"].append(args[arg])
@@ -2526,8 +2532,8 @@ def p_command_tstats(p):
 
 def p_command_tstats_from(p):
     '''tstats_from : CMD_FROM field_name
-                   | CMD_FROM args_term
-                   | CMD_FROM args_term CMD_WHERE args_term'''
+                   | CMD_FROM args_term'''
+    # Removed CMD_FROM args_term CMD_WHERE args_term to avoid ambiguity
     p[0] = {"type":"tstats_from","input":[],"output":[],"content":[],"args":{}}
     for pp in p[2:]:
         if isinstance(pp,dict):
@@ -2537,11 +2543,12 @@ def p_command_tstats_from(p):
                 p[0]["content"].append(pp["field"])
 
 def p_command_tstats_where(p):
-    '''tstats_where : CMD_WHERE expression
+    '''tstats_where : CMD_WHERE filters
                     | CMD_WHERE field_name IN_OP LPAREN values_list RPAREN'''
     p[0] = {"type":"tstats_where","input":[],"output":[],"content":[],"args":{}}
-    if p[2]["type"] == "expression":
-        p[0]["content"].append(p[2]["content"])
+    if p[2]["type"] == "filters":
+        p[0]["input"] += p[2]["input"]
+        p[0]["content"] += p[2]["content"]
     elif p[2]["type"] == "field_name":
         p[0]["input"].append(pp["field"])
 
@@ -2850,8 +2857,14 @@ def p_fields_list(p):
             p[0]["input"].append("*")
 
 def p_rfield_term(p):
-    '''rfield_term : field_name AS_CLAUSE field_name'''
-    p[0] = {"type":"rfield_term","input":[p[1]["field"]],"output":[p[3]["field"]]}
+    '''rfield_term : field_name AS_CLAUSE field_name
+                   | field_name AS_CLAUSE TIMES
+                   | field_name AS_CLAUSE PATTERN'''
+    p[0] = {"type":"rfield_term","input":[p[1]["field"]],"output":[]}
+    if isinstance(p[3],dict):
+        p[0]["output"] = [p[3]["field"]]
+    else:
+        p[0]["output"] = [p[3]]
 
 def p_field_name(p):
     '''field_name : NAME
@@ -3036,6 +3049,10 @@ def p_values_list(p):
 def p_value_subsearch(p):
     'value : subsearch'
     p[0] = {"type":"value","value":"[...]"}
+
+def p_value_path(p):
+    'value : DIVIDE value'
+    p[0] = {"type":"value","value":"/{}".format(str(p[2]))}
 
 def p_value_op(p):
     '''value_op : PLUS
