@@ -11,7 +11,7 @@ s='''index="idx" sourcetype="stats_" event_id IN (1,"3") (a OR ( b AND c) d)
 | search success=yes
 | dedup 5 host,sourcetype keepevents=true 
 '''
-s='| from datamodel:"Authentication"."Authentication"'
+s='index=idx | regex TargetFileName="test" | stats values(*) AS * values(_*) AS _* count by Computer, SecurityID'
 
 print(s)
 

@@ -83,6 +83,7 @@
     "msearch" : {"token_name":"CMD_MPREVIEW","args":["filter","index","splunk_server","splunk_server_group","earliest","latest","chunk_size","target_per_timeseries"],"created_fields":[]},
     "mstats" : {"token_name":"CMD_MSTATS","args":["chart","prestats","append","backfill","update_period","fillnull_value","chunk_size","chart.limit","chart.agg","chart.usenull","chart.useother","chart.nullstr","chart.otherstr","timeformat","starttime","endtime","earliest","latest","every","span"],"created_fields":[]},
     "multikv" : {"token_name":"CMD_MULTIKV","args":["conf","copyattrs","forceheader","multitable","noheader","rmorig"],"selectors":["fields","filter"],"created_fields":[]},
+    "multireport" : {"token_name":"CMD_MULTIREPORT","args":[],"created_fields":[]},
     "multisearch" : {"token_name":"CMD_MULTISEARCH","args":[],"created_fields":[]},
     "mvcombine" : {"token_name":"CMD_MVCOMBINE","args":["delim"],"created_fields":[]},
     "mvexpand" : {"token_name":"CMD_MVEXPAND","args":["limit"],"created_fields":[]},

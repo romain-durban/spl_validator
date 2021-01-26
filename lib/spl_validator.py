@@ -97,8 +97,8 @@ t_COLON = r':'
 t_ignore = " \r\n\t"
 
 def t_MACRO(t):
-    r'`[^`]+`'
-    #Perhaps in the future check macros existence/content
+    r'`([a-zA-Z][a-zA-Z0-9_\.-]*)(\(([^,\(\)]+(,[^,\(\)]+)*)\))?`'
+    #Ignoring
     pass
 
 def t_newline(t):
@@ -406,7 +406,7 @@ def p_expression_logic_factor(p):
     '''expression_logic_factor : expression_value
                                | NOT_OP expression_logic_factor
                                | LPAREN expression RPAREN
-                               | QLPAREN expression QRPAREN'''
+                               | QLPAREN expression_logic_factor QRPAREN'''
     s=""
     for pp in p[1:]:
         if isinstance(pp,dict) and "content" in pp:
@@ -498,7 +498,10 @@ def p_commands(p):
             p[0]["output"]=[]
             for f in p[3]["output"]:
                 if "*" in f:
-                    p[0]["output"] += filterFields(p[1]["output"],f)
+                    if len(p[1]["output"]) > 0:
+                        p[0]["output"] += filterFields(p[1]["output"],f)
+                    else:
+                        p[0]["output"].append(f)
                 else:
                     p[0]["output"].append(f)
         elif p[3]["fields-effect"] == "remove":
@@ -742,7 +745,7 @@ def p_command_stats(p):
                | CMD_SISTATS args_list agg_terms_list 
                | CMD_SISTATS agg_terms_list'''
     fields={"type":"command","input":[],"output":[],"fields-effect":"replace","content":[],"cmd":p[1]}
-    byclause,aggclause = {}, {}
+    aggclause = {}
     args={}
 
     for pp in p[2:]:
@@ -753,14 +756,16 @@ def p_command_stats(p):
                 aggclause["input"]=pp["input"]
                 aggclause["output"]=pp["output"]
             elif pp["type"] == "fields_list":
-                byclause["input"]=pp["input"]
+                fields["input"]=pp["input"].copy()
+                fields["output"]=pp["input"].copy()
 
     for f in aggclause["input"]:
         if f not in fields["input"] and f is not None:
             fields["input"].append(f)
     for f in aggclause["output"]:
-        if f not in fields["output"] and f is not None:
-            fields["output"].append(f)
+        if not (f in fields["output"]):
+            if not f is None:
+                fields["output"].append(f)
         else:
             report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Duplicate field '{}' in stats".format(f),None,value=f)
     p[0] = fields
@@ -787,7 +792,7 @@ def p_command_eval_exprs(p):
 
 def p_command_eval_expr_assign(p):
     'eval_expr_assign : field_name EQ expression'
-    p[0] = {"type":"eval_expr_assign","input":[p[1]["field"]]+p[3]["input"],"output":p[3]["output"],"content":[p[3]["content"]]}
+    p[0] = {"type":"eval_expr_assign","input":p[3]["input"],"output":[p[1]["field"]]+p[3]["output"],"content":[p[3]["content"]]}
 
 def p_command_eval_expr_fun_value(p):
     '''eval_expr_fun_value : CMD_EVAL LPAREN expression RPAREN'''
@@ -1901,9 +1906,10 @@ def p_command_multikv(p):
                 report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected selector {} in {}, expected {}".format(pp,p[1],cmd_conf[p[1]]["selectors"]),None,value=pp)
     checkArgs(p,args)
 
-# MULTISEARCH
+# MULTISEARCH / MULTIREPORT
 def p_command_multisearch(p):
-    '''command : CMD_MULTISEARCH subsearches'''
+    '''command : CMD_MULTISEARCH subsearches
+               | CMD_MULTIREPORT subsearches'''
     p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"generate","content":p[2]["content"],"cmd":p[1]}
 
 # MVCOMBINE / MVEXPAND
@@ -2805,6 +2811,8 @@ def p_agg_term_arg(p):
             p[0]["content"] = p[1]["content"]
         elif p[1]["type"] == "field_name":
             p[0]["input"] = [p[1]["field"]]
+    else:
+        p[0]["input"] = [p[1]]
 
 def p_agg_term_arg_fun(p):
     '''agg_term_arg : CASE_OP LPAREN agg_term_arg RPAREN
@@ -3029,6 +3037,7 @@ def p_value_string(p):
              | QUOTE QUOTE
              | QLPAREN
              | QRPAREN
+             | commands_names
              | op_names
              | DOT STRING
              | DOT NAME
