@@ -28,6 +28,7 @@ Function return an object with the following attributes:
     * `replace`: Sets a new list of fields available
     * `extend`: Adds new fields
     * `remove`: Removes some fields from the results
+  * `filters`: A list of filters (field+operator+value) found at the level of the generating command (and in the possible subsearches) with the purpose to give an idea what the query is filtering
 * `errors`: Object containing the errors found in the SPL.
   * `list`: List of errors identifiers in order of appearance
   * `ref`: Dictionnary containing the list of errors associated to a given error identifier

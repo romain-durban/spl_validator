@@ -1,5 +1,5 @@
 
-import sys, os, re, json, logging, fnmatch, pkg_resources
+import sys, os, re, json, logging, fnmatch, pkg_resources, copy
 from .ply import lex
 from .ply import yacc
 from . import macros
@@ -63,7 +63,7 @@ reserved = {
 }
 
 tokens = [
-    'DEQ','EQ','NEQ','PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'MOD', 'LPAREN','RPAREN','QLPAREN','QRPAREN','LBRACK','RBRACK','COMMA',
+    'DEQ','EQ','NEQ','NOTCHAR','PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'MOD', 'LPAREN','RPAREN','QLPAREN','QRPAREN','LBRACK','RBRACK','COMMA',
     'NUMBER', 'FLOAT', 'QUOTE', 'COMP_OP', 'PIPE', 'DOT', 'COLON',
     'MACRO',
     'NAME','STRING','PATTERN','TIMESPECIFIER','DATE','TEXT'
@@ -76,6 +76,7 @@ literals = []
 t_DEQ = r'\=\='
 t_EQ = r'\='
 t_NEQ = r'!\='
+t_NOTCHAR = r'!'
 t_PLUS    = r'\+'
 t_MINUS   = r'-'
 t_TIMES   = r'\*'
@@ -203,7 +204,7 @@ def p_search_exp(p):
               | PIPE commands'''
     global scope_level, params, data
     flt,cmd=None,None
-    fields = {"type":"search_exp","input":[],"output":[],"fields-effect":[],"content":[],"cmd":[]}
+    fields = {"type":"search_exp","input":[],"output":[],"fields-effect":[],"content":[],"cmd":[],"filters": []}
     if len(p) == 4:
         flt=p[1]
         fields["content"] += p[1]["content"] + p[3]["content"]
@@ -220,6 +221,7 @@ def p_search_exp(p):
         for f in flt["input"]:
             if not f in fields["input"] and f is not None:
                 fields["input"].append(f)
+        fields["filters"] = flt["filters"]
     if not cmd is None:
         fields["cmd"] = cmd["cmd"]
         for f in cmd["input"]:
@@ -228,6 +230,8 @@ def p_search_exp(p):
         for f in cmd["output"]:
             if not f in fields["output"] and f is not None:
                 fields["output"].append(f)
+        if "filters" in cmd and len(p) == 3:
+            fields["filters"] = cmd["filters"]  # Do we want to only bring up filters that are in the generating command or also the ones after?
     p[0] = fields
     logger.info("SEARCH [{}]: {}".format(scope_level,fields))
     if scope_level > 0:
@@ -238,17 +242,20 @@ def p_subsearch(p):
     '''subsearch : LBRACK new_scope commands RBRACK
                  | LBRACK new_scope PIPE commands RBRACK'''
     global scope_level
-    p[0] = {"type":"subsearch","input":p[len(p)-2]["input"],"output":p[len(p)-2]["output"],"content":p[len(p)-2]["content"]}
+    p[0] = {"type":"subsearch","input":p[len(p)-2]["input"],"output":p[len(p)-2]["output"],"content":p[len(p)-2]["content"],"filters": []}
     scope_level = scope_level -1
+    if "filters" in p[len(p)-2]:
+        p[0]["filters"] = p[len(p)-2]["filters"]
 
 def p_subsearches(p):
     '''subsearches : subsearches subsearch
                    | subsearch'''
-    p[0] = {"type":"subsearches","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"]}
+    p[0] = {"type":"subsearches","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"filters": p[1]["filters"]}
     if len(p) > 2:
         p[0]["input"] += p[2]["input"]
         p[0]["output"] += p[2]["output"]
         p[0]["content"] += p[2]["content"]
+        p[0]["filters"] += p[2]["filters"]
 
 def p_new_scope(p):
     'new_scope :'
@@ -271,9 +278,9 @@ def p_filters(p):
                | filters filters_logic_term %prec IMPL_AND
                | filters_logic_term'''
     if len(p) == 4:
-        p[0] = {"type":"filters","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"]}
+        p[0] = {"type":"filters","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + [p[2]] + p[3]["op"], "filters": p[1]["filters"]+p[3]["filters"]}
     else:
-        p[0] = {"type":"filters","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
+        p[0] = {"type":"filters","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"],"filters":p[1]["filters"]}
 
 def p_filters_logic_term(p):
     '''filters_logic_term : filters_logic_term AND_OP filters_logic_factor
@@ -281,11 +288,11 @@ def p_filters_logic_term(p):
                           | filters_logic_term filters_logic_factor %prec IMPL_AND
                           | filters_logic_factor'''
     if len(p) == 4:
-        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + ["and"] + p[3]["op"]}
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[3]["input"],"output":p[1]["output"]+p[3]["output"],"content":p[1]["content"]+p[3]["content"],"op":p[1]["op"] + ["and"] + p[3]["op"], "filters": p[1]["filters"]+p[3]["filters"]}
     elif len(p) == 3:
-        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"],"content":p[1]["content"]+p[2]["content"],"op":p[1]["op"] + ["and"] + p[2]["op"]}
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"]+p[2]["input"],"output":p[1]["output"]+p[2]["output"],"content":p[1]["content"]+p[2]["content"],"op":p[1]["op"] + ["and"] + p[2]["op"], "filters": p[1]["filters"]+p[2]["filters"]}
     else:
-        p[0] = {"type":"filters_logic_term","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"]}
+        p[0] = {"type":"filters_logic_term","input":p[1]["input"],"output":p[1]["output"],"content":p[1]["content"],"op":p[1]["op"],"filters":p[1]["filters"]}
 
 def p_filters_logic_factor(p):
     '''filters_logic_factor : filter
@@ -295,15 +302,16 @@ def p_filters_logic_factor(p):
                             | NOT_OP filters_logic_factor
                             | LPAREN filters RPAREN'''
     if isinstance(p[1],dict):
-        p[0] = {"type":"filters_logic_factor","input":p[1]["input"],"output":p[1]["output"],"content":[p[1]["value"]],"op":[]}
+        p[0] = {"type":"filters_logic_factor","input":p[1]["input"],"output":p[1]["output"],"content":[p[1]["value"]],"op":[], "filters":[copy.deepcopy(p[1])]}
         if len(p) > 2:
             p[0]["input"] += p[len(p)-1]["input"]
             p[0]["output"] += p[len(p)-1]["output"]
             p[0]["content"] += p[len(p)-1]["content"]
+            p[0]["filters"] += p[len(p)-1]["filters"]
             p[0]["op"].append("and")
     else:
         if len(p) > 2:
-            p[0] = {"type":"filters_logic_factor","input":p[2]["input"],"output":p[2]["output"],"content":p[2]["content"],"op":p[2]["op"]}
+            p[0] = {"type":"filters_logic_factor","input":p[2]["input"],"output":p[2]["output"],"content":p[2]["content"],"op":p[2]["op"],"filters":p[2]["filters"]}
             if p[1] == "not":
                 p[0]["op"] = [p[1]] + p[0]["op"]
         
@@ -467,12 +475,24 @@ def p_expression_fun_call(p):
                      | commands_names LPAREN expression_fun_args RPAREN
                      | commands_names LPAREN RPAREN
                      | op_names LPAREN expression_fun_args RPAREN
-                     | op_names LPAREN RPAREN'''
+                     | op_names LPAREN RPAREN
+                     | NOTCHAR NAME LPAREN expression_fun_args RPAREN
+                     | NOTCHAR NAME LPAREN RPAREN
+                     | NOTCHAR commands_names LPAREN expression_fun_args RPAREN
+                     | NOTCHAR commands_names LPAREN RPAREN
+                     | NOTCHAR op_names LPAREN expression_fun_args RPAREN
+                     | NOTCHAR op_names LPAREN RPAREN'''
     p[0] = {"type":"expr_fun_call","content":[],"input":[],"output":[],"function":p[1]}
-    if len(p) == 5:
-        p[0]["content"]="{}({})".format(p[1],p[3]["content"])
+    if ( not isinstance(p[1],dict)) and p[1] == "!":
+        if len(p) == 6:
+            p[0]["content"]="!{}({})".format(p[2],p[4]["content"])
+        else:
+            p[0]["content"]="!{}()".format(p[2])
     else:
-        p[0]["content"]="{}()".format(p[1])
+        if len(p) == 5:
+            p[0]["content"]="{}({})".format(p[1],p[3]["content"])
+        else:
+            p[0]["content"]="{}()".format(p[1])
 
 
 def p_expression_fun_args(p):
@@ -493,7 +513,7 @@ def p_commands(p):
     '''commands : commands PIPE command
                 | command'''
     if len(p) == 4:
-        p[0] = {"type":"command","input":p[1]["input"]+p[3]["input"],"output":[],"fields-effect":p[1]["fields-effect"]+[p[3]["fields-effect"]],"content":[],"cmd":p[1]["cmd"]+[p[3]["cmd"]]}
+        p[0] = {"type":"command","input":p[1]["input"]+p[3]["input"],"output":[],"fields-effect":p[1]["fields-effect"]+[p[3]["fields-effect"]],"content":[],"cmd":p[1]["cmd"]+[p[3]["cmd"]],"filters":[]}
         if p[3]["fields-effect"] == "replace":
             p[0]["output"]=[]
             for f in p[3]["output"]:
@@ -533,6 +553,8 @@ def p_commands(p):
         p[0]["fields-effect"]=[p[1]["fields-effect"]]
         if not "content" in p[0]:
             p[0]["content"]=[]
+    if "filters" in p[1]:
+        p[0]["filters"] = p[1]["filters"] # Should we consider extracting all filters found in subsequent commands or keep only the ones from the first generating command?
     
 
 # ERROR HANDLING
@@ -724,7 +746,7 @@ def p_op_names(p):
 # SEARCH COMMAND
 def p_command_search(p):
     'command : CMD_SEARCH filters'
-    p[0] = {"type":"command","input":p[2]["input"],"output":[],"fields-effect":"none","content":p[2]["content"],"op":p[2]["op"],"cmd":p[1]}
+    p[0] = {"type":"command","input":p[2]["input"],"output":[],"fields-effect":"none","content":p[2]["content"],"op":p[2]["op"],"cmd":p[1],"filters":p[2]["filters"]}
 
 # STATS / SISTATS
 def p_command_stats(p):
@@ -1908,8 +1930,7 @@ def p_command_multikv(p):
 
 # MULTISEARCH / MULTIREPORT
 def p_command_multisearch(p):
-    '''command : CMD_MULTISEARCH subsearches
-               | CMD_MULTIREPORT subsearches'''
+    '''command : CMD_MULTISEARCH subsearches'''
     p[0] = {"type":"command","input":p[2]["input"],"output":p[2]["output"],"fields-effect":"generate","content":p[2]["content"],"cmd":p[1]}
 
 # MVCOMBINE / MVEXPAND
@@ -2536,7 +2557,7 @@ def p_command_tstats(p):
                | CMD_TSTATS args_list agg_terms_list tstats_from
                | CMD_TSTATS args_list agg_terms_list tstats_where
                | CMD_TSTATS args_list agg_terms_list'''
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"generate","content":[],"cmd":p[1]}
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"generate","content":[],"cmd":p[1], "filters":[]}
     args={}
     for pp in p[2:]:
         if pp["type"] == "args_list":
@@ -2547,6 +2568,8 @@ def p_command_tstats(p):
             p[0]["input"] += pp["input"]
             p[0]["output"] += pp["output"]
             p[0]["content"] += pp["content"]
+            if pp["type"] == "tstats_where":
+                p[0]["filters"] = pp["filters"]
     checkArgs(p,args)
 
 def p_command_tstats_from(p):
@@ -2567,6 +2590,7 @@ def p_command_tstats_where(p):
     if p[2]["type"] == "filters":
         p[0]["input"] += p[2]["input"]
         p[0]["content"] += p[2]["content"]
+        p[0]["filters"] = p[2]["filters"]
 
 def p_command_tstats_by(p):
     '''tstats_by : BY_CLAUSE fields_list args_term
@@ -2603,7 +2627,7 @@ def p_command_union(p):
                | CMD_UNION args_list union_datasets
                | CMD_UNION union_datasets args_list
                | CMD_UNION union_datasets'''
-    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"generate","content":[],"cmd":p[1]}
+    p[0] = {"type":"command","input":[],"output":[],"fields-effect":"generate","content":[],"cmd":p[1],"filters":[]}
     args={}
     for pp in p[2:]:
         if pp["type"] == "args_list":
@@ -2612,6 +2636,7 @@ def p_command_union(p):
             p[0]["input"] += pp["input"]
             p[0]["output"] += pp["output"]
             p[0]["content"] += pp["content"]
+            p[0]["filters"] += pp["filters"]
             if "nb" in pp and pp["nb"] == 1:
                 p[0]["fields-effect"] = "extend"
     checkArgs(p,args)
@@ -2626,19 +2651,21 @@ def p_command_union_datasets(p):
                       | subsearch
                       | field_name
                       | field_name STRING'''
-    p[0] = {"type":"union_datasets","input":[],"output":[],"content":[],"nb":1}
+    p[0] = {"type":"union_datasets","input":[],"output":[],"content":[],"nb":1,"filters":[]}
     for pp in p[1:]:
         if isinstance(pp,dict):
             if pp["type"] == "subsearch":
                 p[0]["input"] += pp["input"]
                 p[0]["output"] += pp["output"]
                 p[0]["content"] += pp["content"]
+                p[0]["filters"] += pp["filters"]
             elif pp["type"] == "field_name":
                 p[0]["content"].append(pp["field"])
             elif pp["type"] == "union_datasets":
                 p[0]["input"] += pp["input"]
                 p[0]["output"] += pp["output"]
                 p[0]["content"] += pp["content"]
+                p[0]["filters"] += pp["filters"]
                 p[0]["nb"] = p[1]["nb"] + 1
         elif not pp == "," :
             p[0]["content"][-1] = p[0]["content"][-1]+pp
@@ -2877,8 +2904,15 @@ def p_fields_list(p):
 def p_rfield_term(p):
     '''rfield_term : field_name AS_CLAUSE field_name
                    | field_name AS_CLAUSE TIMES
-                   | field_name AS_CLAUSE PATTERN'''
-    p[0] = {"type":"rfield_term","input":[p[1]["field"]],"output":[]}
+                   | field_name AS_CLAUSE PATTERN
+                   | TIMES AS_CLAUSE PATTERN
+                   | PATTERN AS_CLAUSE TIMES
+                   | PATTERN AS_CLAUSE PATTERN'''
+    p[0] = {"type":"rfield_term","input":[],"output":[]}
+    if isinstance(p[1],dict):
+        p[0]["output"] = [p[1]["field"]]
+    else:
+        p[0]["output"] = [p[1]]
     if isinstance(p[3],dict):
         p[0]["output"] = [p[3]["field"]]
     else:
