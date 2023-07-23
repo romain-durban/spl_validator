@@ -6,6 +6,7 @@
 
 This SPL syntax validator is based on the [PLY project](https://github.com/dabeaz/ply) (Python Lex Yacc).
 Files are already onboarded in the lib folder but you might want to check for updates or just thank him.
+Latest PLY version used: 3.11.
 
 ## Usage
 
@@ -17,6 +18,7 @@ For now, the core of the parser is in the file `spl_validator.py` which describe
 * `verbose` (optional, default false) will output more information about elements being parsed (logging.DEBUG)
 * `macro_files` (optional, default empty list) is the list of file paths for macro definitions (macros.conf) to use to expand the macros calls before running the analysis
   * If a macro is found but cannot be expanded, it will be discarded but the SPL might not be syntaxically valid without the content of the macro
+* **NEW!** `optimize` (optional, default to True) is a boolean indicating whether to use the optimized PLY mode which leverage pre-compiled lex and yacc tables to initialize faster
 
 Function return an object with the following attributes:
 
@@ -231,6 +233,18 @@ Recursive macros are supported, the process of macros detection and expanding is
 ## Debugging
 
 The PLY parser prints debugging information in the file `parser.out`, which contains elements such as the state machine description, helping understand how the parser behaves.
+
+## Optimized mode
+
+Thanks to the optimized mode of PLY, it is now possible to massively improve the start-up time of the parser (which was excruciatingly long in our case).
+In this mode, PLY will generate table files for Lex (`lexer_tab.py`) and Yacc (`parsetab.py`) on the first execution, which are then reused on the next executions to initialize faster.
+
+These table files mostly contain the documentation strings used by PLY to define the tokens and grammar rules. This is done because the optimized mode of Python (`-O`) ignores these documentation strings.
+Keep in mind that if the implementation of the parser is changed, these table files need to be re-generated.
+
+When using the optimized mode of PLY, it is now possible to run the python scripts with the `-O` flag.
+
+This feature can be disabled through the "optimize" argument: `spl_validator.analyze(s,verbose=True,optimize=False)`
 
 ## Author
 

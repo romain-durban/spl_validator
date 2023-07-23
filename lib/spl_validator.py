@@ -3157,11 +3157,12 @@ data = {"main":{},"subsearches":[]}
 lexer = None
 parser = None
 
-def init_analyser():
+def init_analyser(optimize=True):
     global errors, scope_level, data, logger, parser, lex
     errors={"list":[],"ref":{}}
     scope_level=0
     data = {"main":{},"subsearches":[]}
+    opti = 1 if optimize else 0
     if params["verbose"]:
         logger.setLevel(logging.DEBUG)
         ch.setLevel(logging.DEBUG)
@@ -3173,10 +3174,11 @@ def init_analyser():
         ch.setLevel(logging.CRITICAL)
     #Initializing parser only once
     if parser is None:
+        tabdir = os.path.dirname(pkg_resources.resource_filename(__name__,'spl_validator.py'))
         logger.info("Lexer initializing")
-        lexer = lex.lex(errorlog=logger)
+        lexer = lex.lex(errorlog=logger, optimize=opti,lextab="lexer_tab", outputdir=tabdir)
         logger.info("Yacc initializing")
-        parser = yacc.yacc(debug=True,errorlog=logger)
+        parser = yacc.yacc(debug=True,errorlog=logger, optimize=opti, outputdir=tabdir)
     logger.info("Parser initialization finished")
 
 def error_build_token_id(tk):
@@ -3221,12 +3223,12 @@ def print_errors(s):
 #       EXECUTION
 #---------------------------
 
-def analyze(s,verbose=False,print_errs=True,macro_files=[]):
+def analyze(s,verbose=False,print_errs=True,macro_files=[],optimize=True):
     global errors, params, data, logger
     try:
         params["verbose"]=verbose
         params["print_errs"]=print_errs
-        init_analyser()
+        init_analyser(optimize)
         if len(macro_files) > 0:
             res = macros.handleMacros(s,macro_files)
             if res["unique_macros_found"] > 0:
