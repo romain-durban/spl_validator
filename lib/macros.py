@@ -1,4 +1,4 @@
-import sys, os, configparser, re
+import configparser, re
 
 '''
 Doc:
@@ -14,12 +14,12 @@ macro_defs={}	# To cache the files import in case of repeated usages
 def loadFile(fpath):
 	# Splunk config files handle multiline values differently
 	# Need to replace \ by a newline followed by an indentation
-	f=open(fpath,"r")
+	f=open(fpath,"r", encoding="utf-8")
 	fcontent=f.read()
 	fcontent=fcontent.replace("\\\n","\n\t")
 	f.close()
 	#---
-	config = configparser.ConfigParser()
+	config = configparser.RawConfigParser() # Standard ConfigParser cannot handle correctly files which can contain the "%" symbol
 	config.read_string(fcontent)
 	data={}
 	for s in config.sections():
