@@ -125,8 +125,9 @@ def t_STRING(t):
         t.type = "QRPAREN"
     return t
 
+# DOT is tricky to handle because it can only be in the middle
 def t_NAME(t):
-    r'([a-zA-Z0-9_\{\}/\\]*<<[a-zA-Z0-9_\{\}/@\\]+>>[a-zA-Z0-9_\{\}/\\]*|[a-zA-Z0-9_\{\}\$\\][a-zA-Z0-9_\.\{\}\-:/@\\]*)'
+    r'([a-zA-Z0-9_\{\}/\\]*<<[a-zA-Z0-9_\{\}/@\\]+>>[a-zA-Z0-9_\{\}/\\]*|[a-zA-Z0-9_\{\}\$\\][a-zA-Z0-9_\{\}\-:/@\\\.]*[a-zA-Z0-9_\{\}\$\\]|[a-zA-Z0-9_\{\}\$\\][a-zA-Z0-9_\{\}\-:/@\\]*)'
     global cmd_conf
     if t.value.lower() in cmd_conf:
         t.value = t.value.lower()
@@ -2644,13 +2645,10 @@ def p_command_union(p):
 def p_command_union_datasets(p):
     '''union_datasets : union_datasets COMMA subsearch
                       | union_datasets subsearch
-                      | union_datasets COMMA field_name
-                      | union_datasets field_name
-                      | union_datasets COMMA field_name STRING
-                      | union_datasets field_name STRING
+                      | union_datasets COMMA union_named_dataset
+                      | union_datasets union_named_dataset
                       | subsearch
-                      | field_name
-                      | field_name STRING'''
+                      | union_named_dataset'''
     p[0] = {"type":"union_datasets","input":[],"output":[],"content":[],"nb":1,"filters":[]}
     for pp in p[1:]:
         if isinstance(pp,dict):
@@ -2659,8 +2657,8 @@ def p_command_union_datasets(p):
                 p[0]["output"] += pp["output"]
                 p[0]["content"] += pp["content"]
                 p[0]["filters"] += pp["filters"]
-            elif pp["type"] == "field_name":
-                p[0]["content"].append(pp["field"])
+            elif pp["type"] == "union_named_dataset":
+                p[0]["content"].append(pp["content"])
             elif pp["type"] == "union_datasets":
                 p[0]["input"] += pp["input"]
                 p[0]["output"] += pp["output"]
@@ -2669,6 +2667,18 @@ def p_command_union_datasets(p):
                 p[0]["nb"] = p[1]["nb"] + 1
         elif not pp == "," :
             p[0]["content"][-1] = p[0]["content"][-1]+pp
+
+def p_union_named_dataset_str(p):
+    '''union_named_dataset : CMD_DATAMODEL TEXT STRING
+                           | CMD_SAVEDSEARCH TEXT STRING
+                           | CMD_LOOKUP TEXT STRING
+                           | CMD_INPUTLOOKUP TEXT STRING
+                           | NAME'''
+    p[0] = {"type":"union_named_dataset","input":[],"output":[],"content":""}
+    if len(p) > 2:
+        p[0]["content"] = "{}{}{}".format(p[0],p[1],p[2])
+    else:
+        p[0]["content"] = p[1]
 
 # UNTABLE
 def p_command_untable(p):
@@ -2764,7 +2774,10 @@ def checkArgs(p,args):
     global cmd_conf
     for arg in args:
         if not arg in cmd_conf[p[1]]["args"]:
-            report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in {}, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
+            if arg == "_unknown_":
+                report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"[WARNING] Anonymous argument in '{}' command, expected {}".format(p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
+            else:
+                report_error(p.lexpos(1),p.lexspan(len(p)-1)[1],"Unexpected argument '{}' in '{}' command, expected {}".format(arg,p[1],str(cmd_conf[p[1]]["args"])),None,value=arg)
 
 def extractData(p):
     data={}
@@ -2992,6 +3005,10 @@ def p_args_term(p):
     p[0] = {"type":"args_term","args":{}}
     p[0]["args"][p[1].lower()]=p[3]["value"]
 
+def p_args_term_subsearch(p):
+    '''args_term : subsearch'''
+    p[0] = {"type":"args_term","args":{"_unknown_":"_subsearch_"}}
+
 def p_args_value(p):
     '''args_value : value
                   | eval_expr_fun_value
@@ -3063,6 +3080,25 @@ def p_value_number(p):
     else:
         p[0]["value"] = str(p[1])
 
+def p_value_concat(p):
+    'value : value_concat'
+    p[0] = {"type":"value","value":p[1]["value"]}
+
+def p_value_concat_expr(p):
+    """value_concat : value_concat value_concat_factor
+             | value value_concat_factor"""
+    p[0] = {"type":"value_concat","value":"{}{}".format(p[1]["value"],p[2]["value"])}
+
+
+def p_value_concat_term(p):
+    """value_concat_factor : DOT value"""
+    p[0] = {"type":"value_concat_factor","value":"{}{}".format(p[1],p[2]["value"])}
+
+def p_value_concat_term_fun_call(p):
+    """value_concat_factor : DOT expr_fun_call"""
+    p[0] = {"type":"value_concat_factor","value":"{}{}".format(p[1],p[2]["content"])}
+    
+
 def p_value_string(p):
     """value : QUOTE NAME QUOTE
              | STRING
@@ -3073,8 +3109,6 @@ def p_value_string(p):
              | QRPAREN
              | commands_names
              | op_names
-             | DOT STRING
-             | DOT NAME
              | TEXT"""
     p[0] = {"type":"value","value":""}
     if len(p) == 4:
@@ -3112,7 +3146,7 @@ def p_values_list(p):
 
 def p_value_subsearch(p):
     'value : subsearch'
-    p[0] = {"type":"value","value":"[...]"}
+    p[0] = {"type":"value","value":"_subsearch_"}
 
 def p_value_path(p):
     'value : DIVIDE value'
@@ -3192,31 +3226,49 @@ def report_error(st,ed,msg,tk,value=None):
     if tk is None:
         tkid=error_build_message_id(st,ed,value)
         if not tkid in errors["ref"]:
-            errors["ref"][tkid] = [{"start_pos":st,"end_pos":ed,"message":msg,"token":tk}]
+            errors["ref"][tkid] = [{"start_pos":st,"end_pos":ed,"reason":msg,"token":tk}]
             errors["list"].append(tkid)
         else:
-            errors["ref"][tkid].append({"start_pos":st,"end_pos":ed,"message":msg,"token":tk})
+            errors["ref"][tkid].append({"start_pos":st,"end_pos":ed,"reason":msg,"token":tk})
     else:
         tkid=error_build_token_id(tk)
         if not tkid in errors["ref"]:
-            errors["ref"][tkid] = [{"start_pos":st,"end_pos":ed,"message":msg,"token":tk}]
+            errors["ref"][tkid] = [{"start_pos":st,"end_pos":ed,"reason":msg,"token":tk}]
             errors["list"].append(tkid)
         else:
-            errors["ref"][tkid].append({"start_pos":st,"end_pos":ed,"message":msg,"token":tk})
+            errors["ref"][tkid].append({"start_pos":st,"end_pos":ed,"reason":msg,"token":tk})
+
+def prepare_error_messages(s):
+    global errors
+    for eid in errors["list"]:
+        e=errors["ref"][eid][-1]
+        st,ed,msg,tk=e["start_pos"],e["end_pos"],e["reason"],e["token"]
+        if st < 0:
+            st,ed = max(0,len(s) + st), max(0,len(s) + ed)
+        if tk is None:
+            err_str=s[st:ed]
+            errors["ref"][eid][-1]["message"] = "[{}->{}] {}\n\t{}".format(st,ed,msg,err_str)
+        else:
+            err_str=s[st:min(ed+10,len(s))]
+            errors["ref"][eid][-1]["message"] = "[{}->{}] {} : for value '{}' of type {}\n\t{}".format(st,ed,msg,tk.value,tk.type,err_str)
 
 def print_errors(s):
     global errors
     for eid in errors["list"]:
         e=errors["ref"][eid][-1]
-        st,ed,msg,tk=e["start_pos"],e["end_pos"],e["message"],e["token"]
-        if st < 0:
-            st,ed = max(0,len(s) + st), max(0,len(s) + ed)
-        if tk is None:
-            err_str=s[st:ed]
-            logger.error("[{}->{}] {}\n\t{}".format(st,ed,msg,err_str))
+        st,ed,msg,tk=e["start_pos"],e["end_pos"],e["reason"],e["token"]
+        
+        if "message" in e:
+            logger.error(e["message"])
         else:
-            err_str=s[st:min(ed+10,len(s))]
-            logger.error("[{}->{}] {} : for value '{}' of type {}\n\t{}".format(st,ed,msg,tk.value,tk.type,err_str))
+            if st < 0:
+                st,ed = max(0,len(s) + st), max(0,len(s) + ed)
+            if tk is None:
+                err_str=s[st:ed]
+                logger.error("[{}->{}] {}\n\t{}".format(st,ed,msg,err_str))
+            else:
+                err_str=s[st:min(ed+10,len(s))]
+                logger.error("[{}->{}] {} : for value '{}' of type {}\n\t{}".format(st,ed,msg,tk.value,tk.type,err_str))
 
 
 #---------------------------
@@ -3237,6 +3289,8 @@ def analyze(s,verbose=False,print_errs=True,macro_files=[],optimize=True):
                 logger.warning("{} macros could not be expanded".format(res["unique_macros_found"]-res["unique_macros_expanded"]))
             s = res["text"]
         r = yacc.parse(s,tracking=True,debug=False)
+        # Prepare human readable error messages for later uses
+        prepare_error_messages(s)
         if print_errs:
             print_errors(s)
         logger.info("[RES] finished")

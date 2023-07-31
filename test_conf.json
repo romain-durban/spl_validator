@@ -31,7 +31,7 @@
 			"exp_err":1,
 			"tags":["search","stats","args","error"]
 		},
-		"simple_stats": {
+		"simple_eval": {
 			"search":"index=\"idx\" | eval success=if(result=1,true,false)",
 			"exp_err":0,
 			"tags":["search","eval","valid"]
